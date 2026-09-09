@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<meta name="robots" content="noindex, nofollow" />
+<title>Quadros existentes</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="style.css" />
+</head>
+<body>
+
+<header id="app-header">
+  <div class="header-inner">
+    <h1 id="project-title">Quadros existentes</h1>
+  </div>
+</header>
+
+<main id="app-main">
+
+  <section id="login-screen" class="screen">
+    <div class="intro-block">
+      <h2>Página privada — digite a senha de administrador para listar todos os projetos.</h2>
+      <div class="new-project-form">
+        <input id="admin-password" type="password" placeholder="senha" autocomplete="off" />
+        <button id="admin-login" class="btn-solid">ver projetos</button>
+      </div>
+    </div>
+  </section>
+
+  <section id="list-screen" class="screen" hidden>
+    <div id="projects-list"></div>
+  </section>
+
+  <p id="status-message" role="status"></p>
+
+</main>
+
+<script type="module" src="admin.js"></script>
+</body>
+</html>

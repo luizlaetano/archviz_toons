@@ -82,9 +82,7 @@ async function init() {
   }
 
   const { data: project, error } = await supabase
-    .from("projects")
-    .select("id, name")
-    .eq("id", projectId)
+    .rpc("get_project", { p_id: projectId })
     .maybeSingle();
 
   if (error || !project) {
@@ -103,9 +101,7 @@ el.createProjectBtn.addEventListener("click", async () => {
     return;
   }
   const { data, error } = await supabase
-    .from("projects")
-    .insert({ name })
-    .select("id, name")
+    .rpc("create_project", { p_name: name })
     .single();
 
   if (error) {
@@ -136,11 +132,9 @@ async function openProject(project) {
     showStatus("Link copiado.");
   });
 
-  const { data: pairs, error } = await supabase
-    .from("material_pairs")
-    .select("id, category, color_hex, label")
-    .eq("project_id", project.id)
-    .order("created_at", { ascending: true });
+  const { data: pairs, error } = await supabase.rpc("get_material_pairs", {
+    p_project_id: project.id,
+  });
 
   if (error) {
     console.error(error);
@@ -181,9 +175,7 @@ function renderCategories(projectId, pairs) {
 
     node.querySelector(".btn-add-pair").addEventListener("click", async () => {
       const { data, error } = await supabase
-        .from("material_pairs")
-        .insert({ project_id: projectId, category: cat.id })
-        .select("id, category, color_hex, label")
+        .rpc("create_material_pair", { p_project_id: projectId, p_category: cat.id })
         .single();
       if (error) {
         console.error(error);
@@ -256,11 +248,9 @@ function buildPairCard(pair) {
 }
 
 async function loadExistingImages(pairId, thumbsEl) {
-  const { data: images, error } = await supabase
-    .from("reference_images")
-    .select("id, storage_path")
-    .eq("pair_id", pairId)
-    .order("created_at", { ascending: true });
+  const { data: images, error } = await supabase.rpc("get_reference_images", {
+    p_pair_id: pairId,
+  });
 
   if (error) {
     console.error(error);
@@ -287,9 +277,7 @@ async function handleFiles(pairId, fileList, thumbsEl) {
     }
 
     const { data: row, error: insertError } = await supabase
-      .from("reference_images")
-      .insert({ pair_id: pairId, storage_path: path })
-      .select("id, storage_path")
+      .rpc("create_reference_image", { p_pair_id: pairId, p_storage_path: path })
       .single();
     if (insertError) {
       console.error(insertError);
