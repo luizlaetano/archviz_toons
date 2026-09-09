@@ -488,6 +488,101 @@ input[type="color"]::-webkit-color-swatch { border: none; border-radius: 50%; }
   gap: 10px;
 }
 
+/* ---------- home (tela sem link de projeto) ---------- */
+/* Layout próprio, fora do fluxo de #app-main — cobre a tela inteira e
+   esconde o cabeçalho padrão do site (ver app.js). */
+
+@keyframes cnFade {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: none; }
+}
+
+.home-screen {
+  position: fixed;
+  inset: 0;
+  min-height: 100vh;
+  background: #1A1917;
+  color: #EDE6D8;
+  font-family: "Urbanist", -apple-system, BlinkMacSystemFont, sans-serif;
+  font-weight: 300;
+  text-transform: lowercase;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  z-index: 50;
+}
+
+.home-bg-glow {
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(120% 90% at 50% 45%, rgba(199, 154, 62, 0.055), rgba(26, 25, 23, 0) 65%);
+  pointer-events: none;
+}
+
+.home-header {
+  position: relative;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 26px 34px;
+}
+
+.home-eyebrow {
+  font-size: 11px;
+  letter-spacing: 0.24em;
+  color: #8E8478;
+  font-weight: 400;
+}
+
+.home-login-btn {
+  font-family: inherit;
+  text-transform: lowercase;
+  font-size: 14px;
+  font-weight: 400;
+  letter-spacing: 0.1em;
+  color: #EDE6D8;
+  background: transparent;
+  border: 1px solid #423B30;
+  border-radius: 2px;
+  padding: 11px 22px;
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.home-main {
+  position: relative;
+  z-index: 2;
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 40px 34px 90px;
+}
+
+.home-logo {
+  display: block;
+  width: 320px;
+  max-width: 70vw;
+  height: auto;
+  opacity: 0.96;
+  animation: cnFade 0.7s ease both;
+}
+
+.home-footer {
+  position: relative;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 22px 34px;
+  font-size: 12px;
+  letter-spacing: 0.08em;
+  color: #A89C88;
+}
+
 /* ---------- responsive ---------- */
 
 @media (max-width: 560px) {

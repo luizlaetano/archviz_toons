@@ -16,6 +16,7 @@ const BUCKET = "material-references";
 const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
 const el = {
+  header: document.getElementById("app-header"),
   title: document.getElementById("project-title"),
   shareControls: document.getElementById("share-controls"),
   copyLinkBtn: document.getElementById("copy-link"),
@@ -45,6 +46,7 @@ function getProjectIdFromUrl() {
 async function init() {
   const projectId = getProjectIdFromUrl();
   if (!projectId) {
+    el.header.hidden = true;
     el.newProjectScreen.hidden = false;
     return;
   }
@@ -54,6 +56,7 @@ async function init() {
     .maybeSingle();
 
   if (error || !project) {
+    el.header.hidden = false;
     el.newProjectScreen.hidden = true;
     el.errorScreen.hidden = false;
     return;
@@ -65,6 +68,7 @@ async function init() {
 // ---------- project screen ----------
 
 async function openProject(project) {
+  el.header.hidden = false;
   el.title.textContent = project.name;
   el.newProjectScreen.hidden = true;
   el.shareControls.hidden = false;

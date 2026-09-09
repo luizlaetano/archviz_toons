@@ -6,7 +6,7 @@
 <title>Mapa de Referências</title>
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet" />
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600&family=IBM+Plex+Sans:wght@400;500;600&family=Urbanist:wght@300;400;500;600&display=swap" rel="stylesheet" />
 <link rel="stylesheet" href="style.css" />
 </head>
 <body>
@@ -22,10 +22,19 @@
 
 <main id="app-main">
 
-  <section id="new-project-screen" class="screen">
-    <div class="intro-block">
-      <h2>Acesso por convite — use o link do projeto que você recebeu.</h2>
-    </div>
+  <section id="new-project-screen" class="screen home-screen">
+    <div class="home-bg-glow"></div>
+    <header class="home-header">
+      <span class="home-eyebrow">visualização arquitetônica</span>
+      <button class="home-login-btn" disabled title="em breve">entrar</button>
+    </header>
+    <main class="home-main">
+      <img src="logo-mark.png" alt="controle novo" class="home-logo" />
+    </main>
+    <footer class="home-footer">
+      <span>controlenovo.com</span>
+      <span>© 2026</span>
+    </footer>
   </section>
 
   <section id="categories-screen" class="screen" hidden>
