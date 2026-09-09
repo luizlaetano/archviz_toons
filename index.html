@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Mapa de Referências</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="style.css" />
+</head>
+<body>
+
+<header id="app-header">
+  <div class="header-inner">
+    <h1 id="project-title">Mapa de referências</h1>
+    <div id="share-controls" hidden>
+      <button id="copy-link" class="btn-ghost">copiar link do projeto</button>
+    </div>
+  </div>
+</header>
+
+<main id="app-main">
+
+  <section id="new-project-screen" class="screen">
+    <div class="intro-block">
+      <h2>Dê um nome ao projeto para abrir o quadro de referências.</h2>
+      <div class="new-project-form">
+        <input id="new-project-name" type="text" placeholder="ex.: Casa Alto da Boa Vista" autocomplete="off" />
+        <button id="create-project" class="btn-solid">criar quadro</button>
+      </div>
+    </div>
+  </section>
+
+  <section id="categories-screen" class="screen" hidden>
+    <div id="categories-list"></div>
+  </section>
+
+  <section id="error-screen" class="screen" hidden>
+    <h2>Este link de projeto não é válido, ou o projeto foi removido.</h2>
+  </section>
+
+  <p id="status-message" role="status"></p>
+
+</main>
+
+<template id="category-template">
+  <article class="category" data-category="">
+    <header class="category-header">
+      <h3 class="category-name"></h3>
+      <button class="btn-add-pair btn-ghost">+ variação</button>
+    </header>
+    <div class="pairs-row"></div>
+  </article>
+</template>
+
+<template id="pair-template">
+  <div class="pair" data-pair-id="">
+    <div class="pair-top">
+      <input type="color" class="pair-color" value="#cccccc" title="Cor de referência" />
+      <input type="text" class="pair-label" placeholder="ex.: pedra — suíte" />
+      <button class="pair-delete" title="Remover esta variação">×</button>
+    </div>
+    <div class="dropzone">
+      <p class="dropzone-hint">arraste imagens aqui, ou clique</p>
+      <input type="file" class="file-input" accept="image/*" multiple hidden />
+      <div class="thumbs"></div>
+    </div>
+  </div>
+</template>
+
+<script type="module" src="app.js"></script>
+</body>
+</html>
