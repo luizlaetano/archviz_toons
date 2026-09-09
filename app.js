@@ -7,33 +7,11 @@
 // ===========================================================
 
 import { createClient } from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm";
+import { CATEGORIES } from "./categories.js";
 
 const SUPABASE_URL = "https://gxgsuvsckoeyeeygyhck.supabase.co";
 const SUPABASE_ANON_KEY = "sb_publishable_Nv8xHnvLsrkdNOeUXqNNTw_IIVHt_Lc";
 const BUCKET = "material-references";
-
-// Mesma taxonomia usada no override de Material ID no 3ds Max.
-// "pass" indica qual render element identifica essa categoria na máscara:
-// a maioria usa o Material ID padrão; Vidro e Água usam o pass separado
-// de refração (refractionID), por serem superfícies transparentes/refrativas.
-const CATEGORIES = [
-  { id: "piso", label: "Piso", pass: "materialID" },
-  { id: "parede", label: "Parede", pass: "materialID" },
-  { id: "teto", label: "Teto", pass: "materialID" },
-  { id: "esquadria", label: "Esquadria", pass: "materialID" },
-  { id: "vidro", label: "Vidro", pass: "refractionID" },
-  { id: "agua", label: "Água", pass: "refractionID" },
-  { id: "marcenaria", label: "Marcenaria", pass: "materialID" },
-  { id: "pedra", label: "Pedra", pass: "materialID" },
-  { id: "metais", label: "Metais", pass: "materialID" },
-  { id: "estofado", label: "Estofado", pass: "materialID" },
-  { id: "madeira_mobiliario", label: "Madeira — mobiliário", pass: "materialID" },
-  { id: "metal_mobiliario", label: "Metal — mobiliário", pass: "materialID" },
-  { id: "cortina", label: "Cortina", pass: "materialID" },
-  { id: "tapete", label: "Tapete", pass: "materialID" },
-  { id: "decoracao", label: "Decoração", pass: "materialID" },
-  { id: "paisagismo", label: "Paisagismo", pass: "materialID" },
-];
 
 const SIGNED_URL_TTL = 60 * 10; // 10 minutos
 
@@ -158,9 +136,10 @@ function renderCategories(projectId, pairs) {
     article.dataset.category = cat.id;
     node.querySelector(".category-name").textContent = cat.label;
 
-    if (cat.pass && cat.pass !== "materialID") {
+    if (cat.pass) {
       const badge = document.createElement("span");
       badge.className = "category-pass-badge";
+      if (cat.pass === "materialID") badge.classList.add("category-pass-badge-default");
       badge.textContent = cat.pass;
       node.querySelector(".category-header").insertBefore(
         badge,

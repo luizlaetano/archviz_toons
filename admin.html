@@ -31,7 +31,46 @@
   </section>
 
   <section id="list-screen" class="screen" hidden>
+    <h2 class="admin-section-title">Quadros existentes</h2>
     <div id="projects-list"></div>
+
+    <h2 class="admin-section-title admin-section-title-catalog">Catálogo de materiais</h2>
+    <p class="admin-hint">
+      Materiais que valem ser reaproveitados em outros projetos. Vazio até
+      você começar a promover variações que funcionaram bem.
+    </p>
+
+    <div class="catalog-filters">
+      <select id="catalog-filter-category">
+        <option value="">todas as categorias</option>
+      </select>
+      <input id="catalog-filter-tag" type="text" placeholder="filtrar por tag" />
+      <button id="catalog-search-btn" class="btn-ghost">buscar</button>
+      <button id="catalog-new-btn" class="btn-solid">+ novo material</button>
+    </div>
+
+    <div id="catalog-list"></div>
+
+    <div id="catalog-form" hidden class="catalog-form">
+      <h3>Novo material no catálogo</h3>
+      <div class="catalog-form-row">
+        <input type="color" id="catalog-color" value="#cccccc" title="Cor de referência" />
+        <input type="text" id="catalog-name" placeholder="ex.: Mármore branco paraná" />
+        <select id="catalog-category"></select>
+      </div>
+      <input type="text" id="catalog-notes" placeholder="notas (opcional) — onde comprar, fornecedor, etc." />
+      <input type="text" id="catalog-tags-input" placeholder="tags, separadas por vírgula (ex.: mármore, branco, brilhante)" list="catalog-tags-datalist" />
+      <datalist id="catalog-tags-datalist"></datalist>
+      <div class="dropzone" id="catalog-dropzone">
+        <p class="dropzone-hint">arraste imagens aqui, ou clique</p>
+        <input type="file" class="file-input" id="catalog-file-input" accept="image/*" multiple hidden />
+        <div class="thumbs" id="catalog-thumbs"></div>
+      </div>
+      <div class="catalog-form-actions">
+        <button id="catalog-save-btn" class="btn-solid">salvar no catálogo</button>
+        <button id="catalog-cancel-btn" class="btn-ghost">cancelar</button>
+      </div>
+    </div>
   </section>
 
   <p id="status-message" role="status"></p>
