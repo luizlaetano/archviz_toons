@@ -17,7 +17,6 @@ import { CATEGORIES } from "./categories.js";
 const SUPABASE_URL = "https://gxgsuvsckoeyeeygyhck.supabase.co";
 const SUPABASE_ANON_KEY = "sb_publishable_Nv8xHnvLsrkdNOeUXqNNTw_IIVHt_Lc";
 const BUCKET = "material-references";
-const SIGNED_URL_TTL = 60 * 10; // 10 minutos
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
@@ -218,18 +217,18 @@ async function buildCatalogEntryCard(entry) {
   row.appendChild(main);
 
   if (images && images.length > 0) {
+    const shown = images.slice(0, 4);
+    const { data: signedResp } = await supabase.functions.invoke("get-signed-urls", {
+      body: { paths: shown.map((img) => img.storage_path) },
+    });
     const thumbsRow = document.createElement("div");
     thumbsRow.className = "catalog-entry-thumbs";
-    for (const image of images.slice(0, 4)) {
-      const { data: signed } = await supabase.storage
-        .from(BUCKET)
-        .createSignedUrl(image.storage_path, SIGNED_URL_TTL);
-      if (signed) {
-        const img = document.createElement("img");
-        img.src = signed.signedUrl;
-        img.alt = "";
-        thumbsRow.appendChild(img);
-      }
+    for (const signed of signedResp?.data || []) {
+      if (!signed.signedUrl) continue;
+      const img = document.createElement("img");
+      img.src = signed.signedUrl;
+      img.alt = "";
+      thumbsRow.appendChild(img);
     }
     row.appendChild(thumbsRow);
   }

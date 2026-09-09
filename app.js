@@ -13,8 +13,6 @@ const SUPABASE_URL = "https://gxgsuvsckoeyeeygyhck.supabase.co";
 const SUPABASE_ANON_KEY = "sb_publishable_Nv8xHnvLsrkdNOeUXqNNTw_IIVHt_Lc";
 const BUCKET = "material-references";
 
-const SIGNED_URL_TTL = 60 * 10; // 10 minutos
-
 const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
 const el = {
@@ -176,26 +174,26 @@ function buildPairCard(pair) {
   const colorInput = node.querySelector(".pair-color");
   colorInput.value = pair.color_hex || "#cccccc";
   colorInput.addEventListener("change", async () => {
-    const { error } = await supabase
-      .from("material_pairs")
-      .update({ color_hex: colorInput.value })
-      .eq("id", pair.id);
+    const { error } = await supabase.rpc("update_material_pair", {
+      p_id: pair.id,
+      p_color_hex: colorInput.value,
+    });
     if (error) showStatus("Não foi possível salvar a cor.");
   });
 
   const labelInput = node.querySelector(".pair-label");
   labelInput.value = pair.label || "";
   labelInput.addEventListener("blur", async () => {
-    const { error } = await supabase
-      .from("material_pairs")
-      .update({ label: labelInput.value.trim() })
-      .eq("id", pair.id);
+    const { error } = await supabase.rpc("update_material_pair", {
+      p_id: pair.id,
+      p_label: labelInput.value.trim(),
+    });
     if (error) showStatus("Não foi possível salvar o nome.");
   });
 
   node.querySelector(".pair-delete").addEventListener("click", async () => {
     if (!confirm("Remover esta variação e suas imagens?")) return;
-    const { error } = await supabase.from("material_pairs").delete().eq("id", pair.id);
+    const { error } = await supabase.rpc("delete_material_pair", { p_id: pair.id });
     if (error) {
       showStatus("Não foi possível remover.");
       return;
@@ -267,16 +265,22 @@ async function handleFiles(pairId, fileList, thumbsEl) {
   showStatus("Imagens salvas.");
 }
 
+async function getSignedUrl(path) {
+  const { data, error } = await supabase.functions.invoke("get-signed-urls", {
+    body: { paths: [path] },
+  });
+  if (error) return null;
+  return data?.data?.[0]?.signedUrl || null;
+}
+
 async function appendThumb(image, thumbsEl) {
-  const { data, error } = await supabase.storage
-    .from(BUCKET)
-    .createSignedUrl(image.storage_path, SIGNED_URL_TTL);
+  const signedUrl = await getSignedUrl(image.storage_path);
 
   const wrap = document.createElement("div");
   wrap.className = "thumb";
 
   const img = document.createElement("img");
-  img.src = error ? "" : data.signedUrl;
+  img.src = signedUrl || "";
   img.alt = "";
   wrap.appendChild(img);
 
@@ -285,8 +289,10 @@ async function appendThumb(image, thumbsEl) {
   removeBtn.textContent = "×";
   removeBtn.title = "Remover imagem";
   removeBtn.addEventListener("click", async () => {
-    await supabase.storage.from(BUCKET).remove([image.storage_path]);
-    await supabase.from("reference_images").delete().eq("id", image.id);
+    await supabase.functions.invoke("delete-storage-objects", {
+      body: { paths: [image.storage_path] },
+    });
+    await supabase.rpc("delete_reference_image", { p_id: image.id });
     wrap.remove();
   });
   wrap.appendChild(removeBtn);
