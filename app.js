@@ -13,22 +13,26 @@ const SUPABASE_ANON_KEY = "sb_publishable_Nv8xHnvLsrkdNOeUXqNNTw_IIVHt_Lc";
 const BUCKET = "material-references";
 
 // Mesma taxonomia usada no override de Material ID no 3ds Max.
+// "pass" indica qual render element identifica essa categoria na máscara:
+// a maioria usa o Material ID padrão; Vidro e Água usam o pass separado
+// de refração (refractionID), por serem superfícies transparentes/refrativas.
 const CATEGORIES = [
-  { id: "piso", label: "Piso" },
-  { id: "parede", label: "Parede" },
-  { id: "teto", label: "Teto" },
-  { id: "esquadria", label: "Esquadria" },
-  { id: "vidro", label: "Vidro" },
-  { id: "marcenaria", label: "Marcenaria" },
-  { id: "pedra", label: "Pedra" },
-  { id: "metais", label: "Metais" },
-  { id: "estofado", label: "Estofado" },
-  { id: "madeira_mobiliario", label: "Madeira — mobiliário" },
-  { id: "metal_mobiliario", label: "Metal — mobiliário" },
-  { id: "cortina", label: "Cortina" },
-  { id: "tapete", label: "Tapete" },
-  { id: "decoracao", label: "Decoração" },
-  { id: "paisagismo", label: "Paisagismo" },
+  { id: "piso", label: "Piso", pass: "materialID" },
+  { id: "parede", label: "Parede", pass: "materialID" },
+  { id: "teto", label: "Teto", pass: "materialID" },
+  { id: "esquadria", label: "Esquadria", pass: "materialID" },
+  { id: "vidro", label: "Vidro", pass: "refractionID" },
+  { id: "agua", label: "Água", pass: "refractionID" },
+  { id: "marcenaria", label: "Marcenaria", pass: "materialID" },
+  { id: "pedra", label: "Pedra", pass: "materialID" },
+  { id: "metais", label: "Metais", pass: "materialID" },
+  { id: "estofado", label: "Estofado", pass: "materialID" },
+  { id: "madeira_mobiliario", label: "Madeira — mobiliário", pass: "materialID" },
+  { id: "metal_mobiliario", label: "Metal — mobiliário", pass: "materialID" },
+  { id: "cortina", label: "Cortina", pass: "materialID" },
+  { id: "tapete", label: "Tapete", pass: "materialID" },
+  { id: "decoracao", label: "Decoração", pass: "materialID" },
+  { id: "paisagismo", label: "Paisagismo", pass: "materialID" },
 ];
 
 const SIGNED_URL_TTL = 60 * 10; // 10 minutos
@@ -84,6 +88,7 @@ async function init() {
     .maybeSingle();
 
   if (error || !project) {
+    el.newProjectScreen.hidden = true;
     el.errorScreen.hidden = false;
     return;
   }
@@ -122,6 +127,7 @@ el.newProjectName.addEventListener("keydown", (e) => {
 
 async function openProject(project) {
   el.title.textContent = project.name;
+  el.newProjectScreen.hidden = true;
   el.shareControls.hidden = false;
   el.categoriesScreen.hidden = false;
 
@@ -157,6 +163,16 @@ function renderCategories(projectId, pairs) {
     const article = node.querySelector(".category");
     article.dataset.category = cat.id;
     node.querySelector(".category-name").textContent = cat.label;
+
+    if (cat.pass && cat.pass !== "materialID") {
+      const badge = document.createElement("span");
+      badge.className = "category-pass-badge";
+      badge.textContent = cat.pass;
+      node.querySelector(".category-header").insertBefore(
+        badge,
+        node.querySelector(".btn-add-pair")
+      );
+    }
 
     const pairsRow = node.querySelector(".pairs-row");
     for (const pair of byCategory.get(cat.id)) {

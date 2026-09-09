@@ -162,7 +162,7 @@ button {
 .category-header {
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  gap: 12px;
   margin-bottom: 18px;
 }
 
@@ -172,6 +172,21 @@ button {
   font-size: 1.15rem;
   margin: 0;
   color: var(--text);
+}
+
+.category-pass-badge {
+  font-family: var(--sans);
+  font-size: 0.68rem;
+  letter-spacing: 0.02em;
+  color: var(--brass);
+  border: 1px solid var(--brass-soft);
+  border-radius: 999px;
+  padding: 3px 9px;
+  white-space: nowrap;
+}
+
+.category-header .btn-add-pair {
+  margin-left: auto;
 }
 
 .pairs-row {
