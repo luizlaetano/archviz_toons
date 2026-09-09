@@ -31,7 +31,17 @@
   </section>
 
   <section id="list-screen" class="screen" hidden>
-    <h2 class="admin-section-title">Quadros existentes</h2>
+    <h2 class="admin-section-title">Novo quadro</h2>
+    <div class="new-project-form">
+      <input id="new-project-name" type="text" placeholder="ex.: Casa Alto da Boa Vista" autocomplete="off" />
+      <button id="create-project-btn" class="btn-solid">criar quadro</button>
+    </div>
+    <div id="new-project-result" hidden class="catalog-entry">
+      <span id="new-project-link" class="new-project-link"></span>
+      <button id="copy-new-project-link" class="btn-ghost">copiar link</button>
+    </div>
+
+    <h2 class="admin-section-title admin-section-title-catalog">Quadros existentes</h2>
     <div id="projects-list"></div>
 
     <h2 class="admin-section-title admin-section-title-catalog">Catálogo de materiais</h2>

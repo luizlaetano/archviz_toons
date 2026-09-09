@@ -23,8 +23,6 @@ const el = {
   categoriesScreen: document.getElementById("categories-screen"),
   errorScreen: document.getElementById("error-screen"),
   categoriesList: document.getElementById("categories-list"),
-  newProjectName: document.getElementById("new-project-name"),
-  createProjectBtn: document.getElementById("create-project"),
   status: document.getElementById("status-message"),
   categoryTpl: document.getElementById("category-template"),
   pairTpl: document.getElementById("pair-template"),
@@ -40,12 +38,6 @@ function showStatus(msg) {
 
 function getProjectIdFromUrl() {
   return new URLSearchParams(window.location.search).get("p");
-}
-
-function setProjectIdInUrl(id) {
-  const url = new URL(window.location.href);
-  url.searchParams.set("p", id);
-  window.history.replaceState({}, "", url);
 }
 
 // ---------- boot ----------
@@ -69,31 +61,6 @@ async function init() {
 
   await openProject(project);
 }
-
-el.createProjectBtn.addEventListener("click", async () => {
-  const name = el.newProjectName.value.trim();
-  if (!name) {
-    showStatus("Dê um nome ao projeto antes de criar.");
-    return;
-  }
-  const { data, error } = await supabase
-    .rpc("create_project", { p_name: name })
-    .single();
-
-  if (error) {
-    console.error(error);
-    showStatus("Não foi possível criar o projeto.");
-    return;
-  }
-
-  setProjectIdInUrl(data.id);
-  el.newProjectScreen.hidden = true;
-  await openProject(data);
-});
-
-el.newProjectName.addEventListener("keydown", (e) => {
-  if (e.key === "Enter") el.createProjectBtn.click();
-});
 
 // ---------- project screen ----------
 

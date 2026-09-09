@@ -29,6 +29,11 @@ const el = {
   password: document.getElementById("admin-password"),
   loginBtn: document.getElementById("admin-login"),
   projectsList: document.getElementById("projects-list"),
+  newProjectName: document.getElementById("new-project-name"),
+  createProjectBtn: document.getElementById("create-project-btn"),
+  newProjectResult: document.getElementById("new-project-result"),
+  newProjectLink: document.getElementById("new-project-link"),
+  copyNewProjectLinkBtn: document.getElementById("copy-new-project-link"),
   status: document.getElementById("status-message"),
 
   catalogFilterCategory: document.getElementById("catalog-filter-category"),
@@ -119,6 +124,45 @@ function renderProjects(projects) {
     el.projectsList.appendChild(row);
   }
 }
+
+async function refreshProjects() {
+  const { data, error } = await supabase.rpc("admin_list_projects", { p_secret: secret });
+  if (error) return;
+  renderProjects(data || []);
+}
+
+el.createProjectBtn.addEventListener("click", async () => {
+  const name = el.newProjectName.value.trim();
+  if (!name) {
+    showStatus("Dê um nome ao projeto.");
+    return;
+  }
+
+  const { data, error } = await supabase
+    .rpc("create_project", { p_secret: secret, p_name: name })
+    .single();
+
+  if (error) {
+    console.error(error);
+    showStatus("Não foi possível criar o projeto.");
+    return;
+  }
+
+  const link = `${window.location.origin}${window.location.pathname.replace("admin.html", "")}index.html?p=${data.id}`;
+  el.newProjectLink.textContent = link;
+  el.newProjectResult.hidden = false;
+  el.newProjectName.value = "";
+  refreshProjects();
+});
+
+el.newProjectName.addEventListener("keydown", (e) => {
+  if (e.key === "Enter") el.createProjectBtn.click();
+});
+
+el.copyNewProjectLinkBtn.addEventListener("click", () => {
+  navigator.clipboard.writeText(el.newProjectLink.textContent);
+  showStatus("Link copiado.");
+});
 
 // ---------- catálogo: busca e listagem ----------
 
