@@ -230,17 +230,87 @@ input[type="color"] {
 input[type="color"]::-webkit-color-swatch-wrapper { padding: 2px; border-radius: 50%; }
 input[type="color"]::-webkit-color-swatch { border: none; border-radius: 50%; }
 
-.pair-label {
+.pair-catalog {
   flex: 1;
+  min-width: 0;
+  position: relative;
+}
+
+.pair-catalog-search-wrap {
+  position: relative;
+}
+
+.pair-catalog-search {
+  width: 100%;
   background: transparent;
   border: none;
   border-bottom: 1px solid var(--line);
   color: var(--text);
   padding: 4px 2px;
   font-size: 0.85rem;
+  font-family: var(--sans);
+}
+.pair-catalog-search:focus { outline: none; border-color: var(--brass); }
+.pair-catalog-search::placeholder { color: var(--text-dim); }
+
+.pair-catalog-results {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  right: 0;
+  z-index: 5;
+  display: flex;
+  flex-direction: column;
+  background: var(--panel-2);
+  border: 1px solid var(--line);
+  border-radius: 3px;
+  overflow: hidden;
+}
+.pair-catalog-results:empty { display: none; }
+
+.pair-catalog-result {
+  background: none;
+  border: none;
+  border-radius: 0;
+  text-align: left;
+  color: var(--text);
+  font-size: 0.82rem;
+  padding: 8px 10px;
+}
+.pair-catalog-result:hover { background: var(--panel); }
+.pair-catalog-result-create {
+  color: var(--brass);
+  border-top: 1px solid var(--line);
+}
+
+.pair-catalog-linked {
+  display: flex;
+  align-items: center;
+  gap: 8px;
   min-width: 0;
 }
-.pair-label:focus { outline: none; border-color: var(--brass); }
+.pair-catalog-thumb {
+  width: 26px;
+  height: 26px;
+  border-radius: 3px;
+  object-fit: cover;
+  background: var(--panel-2);
+  flex-shrink: 0;
+}
+.pair-catalog-thumb[hidden] { display: none; }
+.pair-catalog-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 0.85rem;
+}
+.pair-catalog-change {
+  padding: 4px 10px;
+  font-size: 0.75rem;
+  flex-shrink: 0;
+}
 
 .pair-delete {
   background: none;
@@ -292,20 +362,6 @@ input[type="color"]::-webkit-color-swatch { border: none; border-radius: 50%; }
   height: 100%;
   object-fit: cover;
   display: block;
-}
-.thumb .thumb-remove {
-  position: absolute;
-  top: 0;
-  right: 0;
-  background: rgba(20, 17, 12, 0.75);
-  color: var(--text);
-  border: none;
-  width: 18px;
-  height: 18px;
-  font-size: 0.7rem;
-  line-height: 1;
-  padding: 0;
-  border-radius: 0 0 0 3px;
 }
 
 /* ---------- status ---------- */

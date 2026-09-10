@@ -50,10 +50,10 @@
       você começar a promover variações que funcionaram bem.
     </p>
 
+    <p class="admin-hint">Clique num material da lista pra editar nome, notas, tags ou imagens.</p>
+
     <div class="catalog-filters">
-      <select id="catalog-filter-category">
-        <option value="">todas as categorias</option>
-      </select>
+      <input id="catalog-filter-query" type="text" placeholder="buscar por nome" />
       <input id="catalog-filter-tag" type="text" placeholder="filtrar por tag" />
       <button id="catalog-search-btn" class="btn-ghost">buscar</button>
       <button id="catalog-new-btn" class="btn-solid">+ novo material</button>
@@ -63,11 +63,7 @@
 
     <div id="catalog-form" hidden class="catalog-form">
       <h3>Novo material no catálogo</h3>
-      <div class="catalog-form-row">
-        <input type="color" id="catalog-color" value="#cccccc" title="Cor de referência" />
-        <input type="text" id="catalog-name" placeholder="ex.: Mármore branco paraná" />
-        <select id="catalog-category"></select>
-      </div>
+      <input type="text" id="catalog-name" placeholder="ex.: Mármore branco paraná" />
       <input type="text" id="catalog-notes" placeholder="notas (opcional) — onde comprar, fornecedor, etc." />
       <input type="text" id="catalog-tags-input" placeholder="tags, separadas por vírgula (ex.: mármore, branco, brilhante)" list="catalog-tags-datalist" />
       <datalist id="catalog-tags-datalist"></datalist>

@@ -3,8 +3,11 @@
 //
 // Não divulgada no site público. Duas funções:
 // 1. "Quadros existentes" — recuperar o link de qualquer projeto.
-// 2. "Catálogo de materiais" — materiais reutilizáveis entre projetos,
-//    organizados por tag, pensando também num futuro dataset pra LoRA.
+// 2. "Catálogo de materiais" — materiais reutilizáveis entre projetos
+//    (nome, notas, tags, imagens). Cor e categoria ficam por variação,
+//    dentro de cada projeto — não aqui, porque o mesmo material muda de
+//    cor de Material ID entre projetos e pode ser usado em categorias
+//    diferentes (mármore em piso, bancada, parede...).
 //
 // Protegida por uma senha guardada só no banco (funções admin_list_projects
 // / catalog_* no Supabase) — a senha nunca fica em nenhum arquivo deste
@@ -12,7 +15,6 @@
 // ===========================================================
 
 import { createClient } from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm";
-import { CATEGORIES } from "./categories.js";
 
 const SUPABASE_URL = "https://gxgsuvsckoeyeeygyhck.supabase.co";
 const SUPABASE_ANON_KEY = "sb_publishable_Nv8xHnvLsrkdNOeUXqNNTw_IIVHt_Lc";
@@ -22,6 +24,7 @@ const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
 let secret = null;
 let stagedFiles = [];
+let openEditPanel = null;
 
 const el = {
   loginScreen: document.getElementById("login-screen"),
@@ -36,15 +39,13 @@ const el = {
   copyNewProjectLinkBtn: document.getElementById("copy-new-project-link"),
   status: document.getElementById("status-message"),
 
-  catalogFilterCategory: document.getElementById("catalog-filter-category"),
+  catalogFilterQuery: document.getElementById("catalog-filter-query"),
   catalogFilterTag: document.getElementById("catalog-filter-tag"),
   catalogSearchBtn: document.getElementById("catalog-search-btn"),
   catalogNewBtn: document.getElementById("catalog-new-btn"),
   catalogList: document.getElementById("catalog-list"),
   catalogForm: document.getElementById("catalog-form"),
-  catalogColor: document.getElementById("catalog-color"),
   catalogName: document.getElementById("catalog-name"),
-  catalogCategory: document.getElementById("catalog-category"),
   catalogNotes: document.getElementById("catalog-notes"),
   catalogTagsInput: document.getElementById("catalog-tags-input"),
   catalogTagsDatalist: document.getElementById("catalog-tags-datalist"),
@@ -83,7 +84,6 @@ async function login() {
   el.loginScreen.hidden = true;
   el.listScreen.hidden = false;
   renderProjects(data || []);
-  populateCategoryDropdowns();
   searchCatalog();
 }
 
@@ -166,17 +166,6 @@ el.copyNewProjectLinkBtn.addEventListener("click", () => {
 
 // ---------- catálogo: busca e listagem ----------
 
-function populateCategoryDropdowns() {
-  for (const select of [el.catalogFilterCategory, el.catalogCategory]) {
-    for (const cat of CATEGORIES) {
-      const opt = document.createElement("option");
-      opt.value = cat.id;
-      opt.textContent = cat.label;
-      select.appendChild(opt);
-    }
-  }
-}
-
 async function refreshTagsDatalist() {
   const { data, error } = await supabase.rpc("catalog_all_tags", { p_secret: secret });
   if (error) return;
@@ -189,12 +178,12 @@ async function refreshTagsDatalist() {
 }
 
 async function searchCatalog() {
-  const category = el.catalogFilterCategory.value || null;
+  const query = el.catalogFilterQuery.value.trim() || null;
   const tag = el.catalogFilterTag.value.trim() || null;
 
   const { data, error } = await supabase.rpc("catalog_search", {
     p_secret: secret,
-    p_category: category,
+    p_query: query,
     p_tag_label: tag,
   });
 
@@ -209,6 +198,7 @@ async function searchCatalog() {
 
 async function renderCatalog(entries) {
   el.catalogList.innerHTML = "";
+  openEditPanel = null;
 
   if (entries.length === 0) {
     const p = document.createElement("p");
@@ -218,35 +208,34 @@ async function renderCatalog(entries) {
     return;
   }
 
-  for (const entry of entries) {
-    el.catalogList.appendChild(await buildCatalogEntryCard(entry));
-  }
+  const cards = await Promise.all(entries.map(buildCatalogEntryCard));
+  for (const card of cards) el.catalogList.appendChild(card);
+}
+
+async function fetchTagsAndImages(catalogId) {
+  const [{ data: tags }, { data: images }] = await Promise.all([
+    supabase.rpc("catalog_list_tags", { p_secret: secret, p_catalog_id: catalogId }),
+    supabase.rpc("catalog_list_images", { p_secret: secret, p_catalog_id: catalogId }),
+  ]);
+  return { tags: tags || [], images: images || [] };
 }
 
 async function buildCatalogEntryCard(entry) {
   const row = document.createElement("div");
   row.className = "catalog-entry";
-
-  const swatch = document.createElement("div");
-  swatch.className = "catalog-entry-swatch";
-  swatch.style.background = entry.color_hex || "#cccccc";
-  row.appendChild(swatch);
+  row.style.cursor = "pointer";
 
   const main = document.createElement("div");
   main.className = "catalog-entry-main";
 
   const name = document.createElement("div");
   name.className = "catalog-entry-name";
-  const catLabel = CATEGORIES.find((c) => c.id === entry.category)?.label || entry.category;
-  name.textContent = `${entry.name} — ${catLabel}`;
+  name.textContent = entry.name;
   main.appendChild(name);
 
-  const [{ data: tags }, { data: images }] = await Promise.all([
-    supabase.rpc("catalog_list_tags", { p_secret: secret, p_catalog_id: entry.id }),
-    supabase.rpc("catalog_list_images", { p_secret: secret, p_catalog_id: entry.id }),
-  ]);
+  const { tags, images } = await fetchTagsAndImages(entry.id);
 
-  if (tags && tags.length > 0) {
+  if (tags.length > 0) {
     const tagsRow = document.createElement("div");
     tagsRow.className = "catalog-entry-tags";
     for (const tag of tags) {
@@ -260,7 +249,7 @@ async function buildCatalogEntryCard(entry) {
 
   row.appendChild(main);
 
-  if (images && images.length > 0) {
+  if (images.length > 0) {
     const shown = images.slice(0, 4);
     const { data: signedResp } = await supabase.functions.invoke("get-signed-urls", {
       body: { paths: shown.map((img) => img.storage_path) },
@@ -281,7 +270,8 @@ async function buildCatalogEntryCard(entry) {
   deleteBtn.className = "catalog-entry-delete";
   deleteBtn.textContent = "×";
   deleteBtn.title = "Remover do catálogo";
-  deleteBtn.addEventListener("click", async () => {
+  deleteBtn.addEventListener("click", async (e) => {
+    e.stopPropagation();
     if (!confirm(`Remover "${entry.name}" do catálogo?`)) return;
     const { error } = await supabase.rpc("catalog_delete", {
       p_secret: secret,
@@ -295,20 +285,211 @@ async function buildCatalogEntryCard(entry) {
   });
   row.appendChild(deleteBtn);
 
+  row.addEventListener("click", () => toggleEditPanel(entry, row, tags, images));
+
   return row;
+}
+
+// ---------- catálogo: editar material existente ----------
+
+function toggleEditPanel(entry, row, tags, images) {
+  if (openEditPanel) {
+    const wasSameEntry = openEditPanel.dataset.catalogId === entry.id;
+    openEditPanel.remove();
+    openEditPanel = null;
+    if (wasSameEntry) return;
+  }
+
+  const panel = buildEditPanel(entry, tags, images);
+  panel.dataset.catalogId = entry.id;
+  row.after(panel);
+  openEditPanel = panel;
+}
+
+function buildEditPanel(entry, tags, images) {
+  const panel = document.createElement("div");
+  panel.className = "catalog-form";
+  panel.style.marginBottom = "10px";
+  panel.addEventListener("click", (e) => e.stopPropagation());
+
+  const nameInput = document.createElement("input");
+  nameInput.type = "text";
+  nameInput.value = entry.name;
+
+  const notesInput = document.createElement("input");
+  notesInput.type = "text";
+  notesInput.placeholder = "notas (opcional)";
+  notesInput.value = entry.notes || "";
+
+  const tagsWrap = document.createElement("div");
+  tagsWrap.className = "catalog-entry-tags";
+  function renderTagChip(tag) {
+    const chip = document.createElement("span");
+    chip.className = "catalog-entry-tag";
+    chip.textContent = tag.label + " ×";
+    chip.style.cursor = "pointer";
+    chip.title = "Remover tag";
+    chip.addEventListener("click", async () => {
+      await supabase.rpc("catalog_remove_tag", {
+        p_secret: secret,
+        p_catalog_id: entry.id,
+        p_tag_id: tag.id,
+      });
+      chip.remove();
+    });
+    tagsWrap.appendChild(chip);
+  }
+  for (const tag of tags) renderTagChip(tag);
+
+  const newTagInput = document.createElement("input");
+  newTagInput.type = "text";
+  newTagInput.placeholder = "adicionar tag e apertar Enter";
+  newTagInput.addEventListener("keydown", async (e) => {
+    if (e.key !== "Enter" || !newTagInput.value.trim()) return;
+    const { data } = await supabase
+      .rpc("catalog_add_tag", {
+        p_secret: secret,
+        p_catalog_id: entry.id,
+        p_tag_label: newTagInput.value.trim(),
+      })
+      .single();
+    if (data) renderTagChip(data);
+    newTagInput.value = "";
+  });
+
+  const thumbsWrap = document.createElement("div");
+  thumbsWrap.className = "thumbs";
+  async function renderExistingThumb(image) {
+    const { data: signedResp } = await supabase.functions.invoke("get-signed-urls", {
+      body: { paths: [image.storage_path] },
+    });
+    const wrap = document.createElement("div");
+    wrap.className = "thumb";
+    const img = document.createElement("img");
+    img.src = signedResp?.data?.[0]?.signedUrl || "";
+    img.alt = "";
+    wrap.appendChild(img);
+    const removeBtn = document.createElement("button");
+    removeBtn.textContent = "×";
+    removeBtn.title = "Remover imagem";
+    removeBtn.style.position = "absolute";
+    removeBtn.style.top = "0";
+    removeBtn.style.right = "0";
+    removeBtn.style.background = "rgba(20,17,12,0.75)";
+    removeBtn.style.color = "var(--text)";
+    removeBtn.style.border = "none";
+    removeBtn.style.width = "18px";
+    removeBtn.style.height = "18px";
+    removeBtn.style.fontSize = "0.7rem";
+    removeBtn.style.lineHeight = "1";
+    removeBtn.style.padding = "0";
+    removeBtn.addEventListener("click", async () => {
+      await supabase.functions.invoke("delete-storage-objects", {
+        body: { paths: [image.storage_path] },
+      });
+      await supabase.rpc("catalog_remove_image", { p_secret: secret, p_image_id: image.id });
+      wrap.remove();
+    });
+    wrap.appendChild(removeBtn);
+    thumbsWrap.appendChild(wrap);
+  }
+  for (const image of images) renderExistingThumb(image);
+
+  const dropzone = document.createElement("div");
+  dropzone.className = "dropzone";
+  const hint = document.createElement("p");
+  hint.className = "dropzone-hint";
+  hint.textContent = "arraste imagens aqui, ou clique";
+  const fileInput = document.createElement("input");
+  fileInput.type = "file";
+  fileInput.hidden = true;
+  fileInput.accept = "image/*";
+  fileInput.multiple = true;
+  dropzone.appendChild(hint);
+  dropzone.appendChild(fileInput);
+  dropzone.appendChild(thumbsWrap);
+
+  async function uploadNewImages(fileList) {
+    for (const file of fileList) {
+      if (!file.type.startsWith("image/")) continue;
+      const path = `catalog/${entry.id}/${crypto.randomUUID()}-${file.name}`;
+      const { error: uploadError } = await supabase.storage.from(BUCKET).upload(path, file, {
+        cacheControl: "3600",
+        upsert: false,
+      });
+      if (uploadError) continue;
+      const { data: row } = await supabase
+        .rpc("catalog_add_image", { p_secret: secret, p_catalog_id: entry.id, p_storage_path: path })
+        .single();
+      if (row) renderExistingThumb(row);
+    }
+  }
+  dropzone.addEventListener("click", () => fileInput.click());
+  fileInput.addEventListener("change", () => uploadNewImages(fileInput.files));
+  dropzone.addEventListener("dragover", (e) => {
+    e.preventDefault();
+    dropzone.classList.add("drag-over");
+  });
+  dropzone.addEventListener("dragleave", () => dropzone.classList.remove("drag-over"));
+  dropzone.addEventListener("drop", (e) => {
+    e.preventDefault();
+    dropzone.classList.remove("drag-over");
+    uploadNewImages(e.dataTransfer.files);
+  });
+
+  const actions = document.createElement("div");
+  actions.className = "catalog-form-actions";
+  const saveBtn = document.createElement("button");
+  saveBtn.className = "btn-solid";
+  saveBtn.textContent = "salvar";
+  saveBtn.addEventListener("click", async () => {
+    const { error } = await supabase.rpc("catalog_update", {
+      p_secret: secret,
+      p_catalog_id: entry.id,
+      p_name: nameInput.value.trim(),
+      p_notes: notesInput.value.trim() || null,
+    });
+    if (error) {
+      showStatus("Não foi possível salvar.");
+      return;
+    }
+    showStatus("Material atualizado.");
+    panel.remove();
+    openEditPanel = null;
+    searchCatalog();
+  });
+  const closeBtn = document.createElement("button");
+  closeBtn.className = "btn-ghost";
+  closeBtn.textContent = "fechar";
+  closeBtn.addEventListener("click", () => {
+    panel.remove();
+    openEditPanel = null;
+  });
+  actions.appendChild(saveBtn);
+  actions.appendChild(closeBtn);
+
+  panel.appendChild(nameInput);
+  panel.appendChild(notesInput);
+  panel.appendChild(tagsWrap);
+  panel.appendChild(newTagInput);
+  panel.appendChild(dropzone);
+  panel.appendChild(actions);
+
+  return panel;
 }
 
 el.catalogSearchBtn.addEventListener("click", searchCatalog);
 el.catalogFilterTag.addEventListener("keydown", (e) => {
   if (e.key === "Enter") searchCatalog();
 });
+el.catalogFilterQuery.addEventListener("keydown", (e) => {
+  if (e.key === "Enter") searchCatalog();
+});
 
 // ---------- catálogo: novo material ----------
 
 function resetCatalogForm() {
-  el.catalogColor.value = "#cccccc";
   el.catalogName.value = "";
-  el.catalogCategory.value = CATEGORIES[0].id;
   el.catalogNotes.value = "";
   el.catalogTagsInput.value = "";
   el.catalogThumbs.innerHTML = "";
@@ -365,8 +546,6 @@ el.catalogSaveBtn.addEventListener("click", async () => {
     .rpc("catalog_create", {
       p_secret: secret,
       p_name: name,
-      p_category: el.catalogCategory.value,
-      p_color_hex: el.catalogColor.value,
       p_notes: el.catalogNotes.value.trim() || null,
     })
     .single();

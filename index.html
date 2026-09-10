@@ -63,13 +63,20 @@
   <div class="pair" data-pair-id="">
     <div class="pair-top">
       <input type="color" class="pair-color" value="#cccccc" title="Cor de referência" />
-      <input type="text" class="pair-label" placeholder="ex.: pedra — suíte" />
+
+      <div class="pair-catalog">
+        <div class="pair-catalog-search-wrap">
+          <input type="text" class="pair-catalog-search" placeholder="buscar material no catálogo..." autocomplete="off" />
+          <div class="pair-catalog-results"></div>
+        </div>
+        <div class="pair-catalog-linked" hidden>
+          <img class="pair-catalog-thumb" alt="" />
+          <span class="pair-catalog-name"></span>
+          <button class="pair-catalog-change btn-ghost">trocar</button>
+        </div>
+      </div>
+
       <button class="pair-delete" title="Remover esta variação">×</button>
-    </div>
-    <div class="dropzone">
-      <p class="dropzone-hint">arraste imagens aqui, ou clique</p>
-      <input type="file" class="file-input" accept="image/*" multiple hidden />
-      <div class="thumbs"></div>
     </div>
   </div>
 </template>

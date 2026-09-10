@@ -11,9 +11,14 @@ import { CATEGORIES } from "./categories.js";
 
 const SUPABASE_URL = "https://gxgsuvsckoeyeeygyhck.supabase.co";
 const SUPABASE_ANON_KEY = "sb_publishable_Nv8xHnvLsrkdNOeUXqNNTw_IIVHt_Lc";
-const BUCKET = "material-references";
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+// A busca no catálogo é compartilhada entre projetos (e pode conter
+// materiais associados a outros clientes), então pedimos a senha de
+// admin uma vez por sessão de página antes de liberar a busca — igual
+// à página admin.html, só que aqui embutido no próprio quadro.
+let catalogSecret = null;
 
 const el = {
   header: document.getElementById("app-header"),
@@ -39,6 +44,15 @@ function showStatus(msg) {
 
 function getProjectIdFromUrl() {
   return new URLSearchParams(window.location.search).get("p");
+}
+
+async function getSignedUrl(path) {
+  if (!path) return null;
+  const { data, error } = await supabase.functions.invoke("get-signed-urls", {
+    body: { paths: [path] },
+  });
+  if (error) return null;
+  return data?.data?.[0]?.signedUrl || null;
 }
 
 // ---------- boot ----------
@@ -137,6 +151,27 @@ function renderCategories(projectId, pairs) {
   }
 }
 
+// ---------- variação: cor + material do catálogo ----------
+
+async function ensureCatalogSecret() {
+  if (catalogSecret) return catalogSecret;
+
+  const attempt = window.prompt("Senha de administrador (necessária pra usar o catálogo):");
+  if (!attempt) return null;
+
+  const { error } = await supabase.rpc("search_catalog_materials", {
+    p_secret: attempt,
+    p_query: "",
+  });
+  if (error) {
+    showStatus("Senha incorreta.");
+    return null;
+  }
+
+  catalogSecret = attempt;
+  return catalogSecret;
+}
+
 function buildPairCard(pair) {
   const node = el.pairTpl.content.cloneNode(true);
   const root = node.querySelector(".pair");
@@ -145,25 +180,15 @@ function buildPairCard(pair) {
   const colorInput = node.querySelector(".pair-color");
   colorInput.value = pair.color_hex || "#cccccc";
   colorInput.addEventListener("change", async () => {
-    const { error } = await supabase.rpc("update_material_pair", {
+    const { error } = await supabase.rpc("update_material_pair_color", {
       p_id: pair.id,
       p_color_hex: colorInput.value,
     });
     if (error) showStatus("Não foi possível salvar a cor.");
   });
 
-  const labelInput = node.querySelector(".pair-label");
-  labelInput.value = pair.label || "";
-  labelInput.addEventListener("blur", async () => {
-    const { error } = await supabase.rpc("update_material_pair", {
-      p_id: pair.id,
-      p_label: labelInput.value.trim(),
-    });
-    if (error) showStatus("Não foi possível salvar o nome.");
-  });
-
   node.querySelector(".pair-delete").addEventListener("click", async () => {
-    if (!confirm("Remover esta variação e suas imagens?")) return;
+    if (!confirm("Remover esta variação?")) return;
     const { error } = await supabase.rpc("delete_material_pair", { p_id: pair.id });
     if (error) {
       showStatus("Não foi possível remover.");
@@ -172,103 +197,107 @@ function buildPairCard(pair) {
     root.remove();
   });
 
-  const dropzone = node.querySelector(".dropzone");
-  const fileInput = node.querySelector(".file-input");
-  const thumbs = node.querySelector(".thumbs");
-
-  dropzone.addEventListener("click", () => fileInput.click());
-  fileInput.addEventListener("change", () => handleFiles(pair.id, fileInput.files, thumbs));
-
-  dropzone.addEventListener("dragover", (e) => {
-    e.preventDefault();
-    dropzone.classList.add("drag-over");
-  });
-  dropzone.addEventListener("dragleave", () => dropzone.classList.remove("drag-over"));
-  dropzone.addEventListener("drop", (e) => {
-    e.preventDefault();
-    dropzone.classList.remove("drag-over");
-    handleFiles(pair.id, e.dataTransfer.files, thumbs);
-  });
-
-  loadExistingImages(pair.id, thumbs);
+  setupCatalogPicker(node, pair);
 
   return node;
 }
 
-async function loadExistingImages(pairId, thumbsEl) {
-  const { data: images, error } = await supabase.rpc("get_reference_images", {
-    p_pair_id: pairId,
+function setupCatalogPicker(node, pair) {
+  const searchWrap = node.querySelector(".pair-catalog-search-wrap");
+  const searchInput = node.querySelector(".pair-catalog-search");
+  const resultsEl = node.querySelector(".pair-catalog-results");
+  const linkedEl = node.querySelector(".pair-catalog-linked");
+  const linkedThumb = node.querySelector(".pair-catalog-thumb");
+  const linkedName = node.querySelector(".pair-catalog-name");
+  const changeBtn = node.querySelector(".pair-catalog-change");
+
+  async function showLinked(catalogId, name, imagePath) {
+    pair.catalog_id = catalogId;
+    linkedName.textContent = name;
+    linkedThumb.src = (await getSignedUrl(imagePath)) || "";
+    linkedThumb.hidden = !imagePath;
+    searchWrap.hidden = true;
+    linkedEl.hidden = false;
+  }
+
+  function showSearch() {
+    searchWrap.hidden = false;
+    linkedEl.hidden = true;
+    resultsEl.innerHTML = "";
+    searchInput.value = "";
+    searchInput.focus();
+  }
+
+  if (pair.catalog_id) {
+    showLinked(pair.catalog_id, pair.catalog_name, pair.catalog_image);
+  }
+
+  changeBtn.addEventListener("click", showSearch);
+
+  let searchTimer = null;
+  searchInput.addEventListener("focus", async () => {
+    if (!(await ensureCatalogSecret())) searchInput.blur();
   });
 
-  if (error) {
-    console.error(error);
-    return;
-  }
-  for (const img of images || []) {
-    await appendThumb(img, thumbsEl);
-  }
-}
+  searchInput.addEventListener("input", () => {
+    clearTimeout(searchTimer);
+    const query = searchInput.value.trim();
+    searchTimer = setTimeout(() => runSearch(query), 250);
+  });
 
-async function handleFiles(pairId, fileList, thumbsEl) {
-  for (const file of fileList) {
-    if (!file.type.startsWith("image/")) continue;
+  async function runSearch(query) {
+    if (!catalogSecret) return;
 
-    const path = `${pairId}/${crypto.randomUUID()}-${file.name}`;
-    const { error: uploadError } = await supabase.storage.from(BUCKET).upload(path, file, {
-      cacheControl: "3600",
-      upsert: false,
+    const { data, error } = await supabase.rpc("search_catalog_materials", {
+      p_secret: catalogSecret,
+      p_query: query,
     });
-    if (uploadError) {
-      console.error(uploadError);
-      showStatus("Falha ao enviar imagem.");
-      continue;
+
+    resultsEl.innerHTML = "";
+    if (error) return;
+
+    for (const result of data || []) {
+      const item = document.createElement("button");
+      item.type = "button";
+      item.className = "pair-catalog-result";
+      item.textContent = result.name;
+      item.addEventListener("click", () => selectCatalogMaterial(result.id, result.name, result.image_path));
+      resultsEl.appendChild(item);
     }
 
-    const { data: row, error: insertError } = await supabase
-      .rpc("create_reference_image", { p_pair_id: pairId, p_storage_path: path })
+    if (query) {
+      const createItem = document.createElement("button");
+      createItem.type = "button";
+      createItem.className = "pair-catalog-result pair-catalog-result-create";
+      createItem.textContent = `+ criar material "${query}"`;
+      createItem.addEventListener("click", () => createCatalogMaterial(query));
+      resultsEl.appendChild(createItem);
+    }
+  }
+
+  async function selectCatalogMaterial(catalogId, name, imagePath) {
+    const { error } = await supabase.rpc("link_material_pair_catalog", {
+      p_id: pair.id,
+      p_catalog_id: catalogId,
+    });
+    if (error) {
+      showStatus("Não foi possível vincular o material.");
+      return;
+    }
+    await showLinked(catalogId, name, imagePath);
+  }
+
+  async function createCatalogMaterial(name) {
+    const { data, error } = await supabase
+      .rpc("quick_create_catalog_material", { p_secret: catalogSecret, p_name: name })
       .single();
-    if (insertError) {
-      console.error(insertError);
-      continue;
+    if (error) {
+      showStatus("Não foi possível criar o material.");
+      return;
     }
-    await appendThumb(row, thumbsEl);
+    await selectCatalogMaterial(data.id, data.name, null);
+    showStatus("Material criado — edite imagens e tags no admin.");
   }
-  showStatus("Imagens salvas.");
-}
-
-async function getSignedUrl(path) {
-  const { data, error } = await supabase.functions.invoke("get-signed-urls", {
-    body: { paths: [path] },
-  });
-  if (error) return null;
-  return data?.data?.[0]?.signedUrl || null;
-}
-
-async function appendThumb(image, thumbsEl) {
-  const signedUrl = await getSignedUrl(image.storage_path);
-
-  const wrap = document.createElement("div");
-  wrap.className = "thumb";
-
-  const img = document.createElement("img");
-  img.src = signedUrl || "";
-  img.alt = "";
-  wrap.appendChild(img);
-
-  const removeBtn = document.createElement("button");
-  removeBtn.className = "thumb-remove";
-  removeBtn.textContent = "×";
-  removeBtn.title = "Remover imagem";
-  removeBtn.addEventListener("click", async () => {
-    await supabase.functions.invoke("delete-storage-objects", {
-      body: { paths: [image.storage_path] },
-    });
-    await supabase.rpc("delete_reference_image", { p_id: image.id });
-    wrap.remove();
-  });
-  wrap.appendChild(removeBtn);
-
-  thumbsEl.appendChild(wrap);
 }
 
 init();
