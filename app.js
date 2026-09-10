@@ -153,23 +153,38 @@ function renderCategories(projectId, pairs) {
 
 // ---------- variação: cor + material do catálogo ----------
 
-async function ensureCatalogSecret() {
-  if (catalogSecret) return catalogSecret;
+// O prompt() nativo tira o foco da página; quando ele fecha, o navegador
+// às vezes devolve o foco pro campo de busca, disparando o evento "focus"
+// de novo — sem essa trava, isso reabria o prompt uma segunda vez mesmo
+// já tendo digitado a senha certa na primeira.
+let catalogSecretPromise = null;
 
-  const attempt = window.prompt("Senha de administrador (necessária pra usar o catálogo):");
-  if (!attempt) return null;
+function ensureCatalogSecret() {
+  if (catalogSecret) return Promise.resolve(catalogSecret);
+  if (catalogSecretPromise) return catalogSecretPromise;
 
-  const { error } = await supabase.rpc("search_catalog_materials", {
-    p_secret: attempt,
-    p_query: "",
+  catalogSecretPromise = (async () => {
+    const attempt = window.prompt("Senha de administrador (necessária pra usar o catálogo):");
+    if (!attempt) return null;
+
+    const { error } = await supabase.rpc("search_catalog_materials", {
+      p_secret: attempt,
+      p_query: "",
+    });
+    if (error) {
+      showStatus("Senha incorreta.");
+      return null;
+    }
+
+    catalogSecret = attempt;
+    return catalogSecret;
+  })();
+
+  catalogSecretPromise.finally(() => {
+    catalogSecretPromise = null;
   });
-  if (error) {
-    showStatus("Senha incorreta.");
-    return null;
-  }
 
-  catalogSecret = attempt;
-  return catalogSecret;
+  return catalogSecretPromise;
 }
 
 function buildPairCard(pair) {
@@ -233,6 +248,10 @@ function setupCatalogPicker(node, pair) {
   }
 
   changeBtn.addEventListener("click", showSearch);
+
+  document.addEventListener("click", (e) => {
+    if (!searchWrap.contains(e.target)) resultsEl.innerHTML = "";
+  });
 
   let searchTimer = null;
   searchInput.addEventListener("focus", async () => {
