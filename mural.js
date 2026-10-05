@@ -42,6 +42,7 @@ const store = new Map();      // id -> { item, node }
 const dirty = new Map();      // id -> item aguardando salvar
 const deleting = new Set();   // ids removidos localmente, ainda não confirmados
 const signedCache = new Map();// storage_path -> url
+const imgCache = new Map();   // storage_path -> HTMLImageElement já carregado
 
 // ---------- util ----------
 function setStatus(msg, isError = false) {
@@ -108,10 +109,16 @@ function fillGroup(g, item) {
 
   switch (item.tipo) {
     case "frame":
+      // só a borda e a faixa do título "pegam" o mouse: o miolo deixa
+      // arrastar/selecionar o que está dentro da moldura
       g.add(new Konva.Rect({
-        name: "body", width: w, height: h, cornerRadius: 6,
-        fill: "rgba(199,154,62,0.04)", stroke: C.line, strokeWidth: 2, dash: [10, 8],
+        width: w, height: h, cornerRadius: 6, fill: "rgba(199,154,62,0.04)", listening: false,
       }));
+      g.add(new Konva.Rect({
+        name: "body", width: w, height: h, cornerRadius: 6, fillEnabled: false,
+        stroke: C.line, strokeWidth: 2, dash: [10, 8], hitStrokeWidth: 24,
+      }));
+      g.add(new Konva.Rect({ width: w, height: Math.min(h, 48), fill: "rgba(0,0,0,0.001)" }));
       g.add(new Konva.Text({
         name: "label", x: 14, y: 10, text: d.titulo || "",
         fontFamily: FONT_SERIF, fontSize: d.tamanho || 20, fill: C.brass, listening: false,
@@ -140,7 +147,7 @@ function fillGroup(g, item) {
 
     case "imagem":
       g.add(new Konva.Rect({ name: "body", width: w, height: h, fill: C.panel, stroke: C.line, strokeWidth: 1 }));
-      loadImageInto(g, item.id);
+      loadImageInto(g, item);
       break;
 
     case "traco":
@@ -153,28 +160,30 @@ function fillGroup(g, item) {
   }
 }
 
-async function loadImageInto(g, id, retried = false) {
-  const rec = store.get(id);
-  const path = (rec?.item || {}).dados?.storage_path;
+async function loadImageInto(g, item, retried = false) {
+  const path = item.dados?.storage_path;
   if (!path) return;
+  const put = (img) => {
+    const rec = store.get(item.id);
+    if (rec && rec.node !== g) return; // nó foi substituído/removido
+    const cur = rec?.item || item;
+    const body = g.findOne(".body");
+    if (body) body.destroy();
+    g.add(new Konva.Image({ name: "body", image: img, width: cur.w, height: cur.h }));
+    layer.batchDraw();
+  };
+  if (imgCache.has(path)) return put(imgCache.get(path));
   await ensureSigned([path]);
   const url = signedCache.get(path);
   if (!url) return;
 
   const img = new Image();
   img.crossOrigin = "anonymous";
-  img.onload = () => {
-    const cur = store.get(id);
-    if (!cur || cur.node !== g) return; // nó foi substituído/removido
-    const body = g.findOne(".body");
-    if (body) body.destroy();
-    g.add(new Konva.Image({ name: "body", image: img, width: cur.item.w, height: cur.item.h }));
-    layer.batchDraw();
-  };
+  img.onload = () => { imgCache.set(path, img); if (store.get(item.id)?.node === g) put(img); };
   img.onerror = () => {
     if (retried) return;
     signedCache.delete(path); // URL expirada: pede outra uma vez
-    loadImageInto(g, id, true);
+    loadImageInto(g, item, true);
   };
   img.src = url;
 }
@@ -302,6 +311,19 @@ function imageSize(file) {
   });
 }
 
+const DISPLAY_MAX = 2000;
+async function makeDisplayBlob(url, w, h) {
+  if (Math.max(w, h) <= DISPLAY_MAX) return null;
+  const img = new Image();
+  await new Promise((res, rej) => { img.onload = res; img.onerror = rej; img.src = url; });
+  const k = DISPLAY_MAX / Math.max(w, h);
+  const c = document.createElement("canvas");
+  c.width = Math.round(w * k);
+  c.height = Math.round(h * k);
+  c.getContext("2d").drawImage(img, 0, 0, c.width, c.height);
+  return new Promise((res) => c.toBlob(res, "image/webp", 0.9));
+}
+
 async function addImageFiles(files, at) {
   let off = 0;
   for (const f of files) {
@@ -310,13 +332,22 @@ async function addImageFiles(files, at) {
     try {
       const dim = await imageSize(f);
       const ext = (f.name.split(".").pop() || "png").toLowerCase().replace(/[^a-z0-9]/g, "") || "png";
-      const path = `murais/${mural.id}/${crypto.randomUUID()}.${ext}`;
-      const { error } = await supabase.storage.from(BUCKET).upload(path, f, { contentType: f.type, upsert: false });
+      const base = `murais/${mural.id}/${crypto.randomUUID()}`;
+      const origPath = `${base}.${ext}`;
+      const { error } = await supabase.storage.from(BUCKET).upload(origPath, f, { contentType: f.type, upsert: false });
       if (error) throw error;
-      signedCache.set(path, dim.url); // exibe já, sem esperar a URL assinada
+      // versão leve para exibição (renders 4K pesam no canvas); o original fica guardado
+      let path = origPath;
+      const thumb = await makeDisplayBlob(dim.url, dim.w, dim.h);
+      if (thumb) {
+        const tPath = `${base}_d.webp`;
+        const { error: e2 } = await supabase.storage.from(BUCKET).upload(tPath, thumb, { contentType: "image/webp", upsert: false });
+        if (!e2) { path = tPath; signedCache.set(tPath, URL.createObjectURL(thumb)); }
+      }
+      if (path === origPath) signedCache.set(path, dim.url); // exibe já, sem esperar a URL assinada
       const w = Math.min(520, dim.w);
       const h = (w * dim.h) / dim.w;
-      newItem("imagem", at.x + off, at.y + off, w, h, { storage_path: path, nome: f.name });
+      newItem("imagem", at.x + off, at.y + off, w, h, { storage_path: path, original_path: origPath, nome: f.name });
       off += 30;
     } catch (e) {
       setStatus("erro no upload: " + (e.message || e), true);
