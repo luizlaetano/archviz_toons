@@ -1,0 +1,99 @@
+/* ===========================================================
+   Mural — mesma paleta do Mapa de Referências (style.css)
+   =========================================================== */
+:root {
+  --bg: #1E1C19;
+  --panel: #262218;
+  --panel-2: #2C2820;
+  --line: #423B30;
+  --text: #EDE6D8;
+  --text-dim: #A89C88;
+  --brass: #C79A3E;
+  --brass-soft: #8C6F30;
+  --danger: #B5573F;
+  --serif: "Fraunces", "Iowan Old Style", serif;
+  --sans: "IBM Plex Sans", -apple-system, BlinkMacSystemFont, sans-serif;
+  --topbar-h: 52px;
+}
+
+* { box-sizing: border-box; }
+
+html, body {
+  margin: 0; padding: 0; height: 100%;
+  background: var(--bg); color: var(--text);
+  font-family: var(--sans); font-size: 15px; overflow: hidden;
+}
+
+/* ---------- barra superior ---------- */
+#topbar {
+  position: fixed; inset: 0 0 auto 0; height: var(--topbar-h);
+  display: flex; align-items: center; gap: 14px;
+  padding: 0 20px; z-index: 20;
+  background: var(--bg); border-bottom: 1px solid var(--line);
+}
+#mural-title {
+  margin: 0; font-family: var(--serif); font-weight: 500;
+  font-size: 1.15rem; letter-spacing: 0.01em;
+}
+.spacer { flex: 1; }
+.badge {
+  font-size: 0.72rem; letter-spacing: 0.08em; text-transform: uppercase;
+  color: var(--text-dim); border: 1px solid var(--line);
+  border-radius: 999px; padding: 3px 10px;
+}
+#status { font-size: 0.8rem; color: var(--text-dim); min-width: 120px; text-align: right; }
+#status.error { color: var(--danger); }
+
+button, select {
+  font-family: var(--sans); font-size: 0.85rem; color: var(--text);
+  background: var(--panel-2); border: 1px solid var(--line);
+  border-radius: 6px; padding: 6px 12px; cursor: pointer;
+}
+button:hover, select:hover { border-color: var(--brass-soft); }
+.btn-ghost { background: transparent; }
+button.tool.active { background: var(--brass); color: var(--bg); border-color: var(--brass); font-weight: 600; }
+button.danger:hover { border-color: var(--danger); color: var(--danger); }
+
+/* ---------- barra de ferramentas ---------- */
+#toolbar {
+  position: fixed; left: 16px; top: calc(var(--topbar-h) + 16px); z-index: 20;
+  display: flex; flex-direction: column; gap: 6px;
+  padding: 8px; background: var(--panel); border: 1px solid var(--line);
+  border-radius: 10px; width: 92px;
+}
+#toolbar hr { width: 100%; border: 0; border-top: 1px solid var(--line); margin: 4px 0; }
+#toolbar button, #toolbar select { width: 100%; }
+.pen-opt input[type="color"] {
+  width: 100%; height: 30px; padding: 0; border: 1px solid var(--line);
+  border-radius: 6px; background: transparent; cursor: pointer;
+}
+
+/* ---------- canvas ---------- */
+#stage-wrap {
+  position: fixed; inset: var(--topbar-h) 0 0 0;
+  background-color: var(--bg);
+  background-image: radial-gradient(var(--line) 1px, transparent 1px);
+  background-size: 28px 28px;
+}
+#stage { width: 100%; height: 100%; }
+#stage-wrap.tool-pen { cursor: crosshair; }
+#stage-wrap.tool-text, #stage-wrap.tool-note { cursor: text; }
+#stage-wrap.drop-over { outline: 2px dashed var(--brass); outline-offset: -8px; }
+
+#editor {
+  position: absolute; z-index: 15; resize: none; overflow: hidden;
+  background: var(--panel); color: var(--text);
+  border: 1px solid var(--brass); border-radius: 4px; padding: 6px;
+  font-family: var(--sans); line-height: 1.3; outline: none;
+}
+#editor[hidden] { display: none; }
+
+#fail {
+  position: fixed; inset: var(--topbar-h) 0 0 0; z-index: 30;
+  display: flex; align-items: center; justify-content: center;
+  background: var(--bg); color: var(--text-dim);
+  font-family: var(--serif); font-size: 1.2rem; text-align: center; padding: 24px;
+}
+#fail[hidden] { display: none; }
+
+body.view-only #toolbar { display: none; }

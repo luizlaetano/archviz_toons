@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Mural · Controle Novo</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="mural.css" />
+</head>
+<body>
+
+<header id="topbar">
+  <h1 id="mural-title">Mural</h1>
+  <span id="badge-view" class="badge" hidden>somente visualização</span>
+  <div class="spacer"></div>
+  <span id="status" role="status"></span>
+  <button id="btn-fit" class="btn-ghost">enquadrar</button>
+  <button id="btn-copy" class="btn-ghost">copiar link</button>
+</header>
+
+<nav id="toolbar" hidden>
+  <button data-tool="select" class="tool active" title="Mover e redimensionar (V)">Mover</button>
+  <button data-tool="pen" class="tool" title="Caneta (P)">Caneta</button>
+  <button data-tool="text" class="tool" title="Texto (T)">Texto</button>
+  <button data-tool="note" class="tool" title="Nota (N)">Nota</button>
+  <button id="btn-image" title="Inserir imagem (I)">Imagem</button>
+  <hr />
+  <label class="pen-opt" title="Cor da caneta">
+    <input type="color" id="pen-color" value="#C79A3E" />
+  </label>
+  <select id="pen-width" title="Espessura da caneta">
+    <option value="3">fina</option>
+    <option value="6" selected>média</option>
+    <option value="12">grossa</option>
+  </select>
+  <hr />
+  <button id="btn-delete" class="danger" title="Excluir selecionado (Del)">Excluir</button>
+</nav>
+
+<div id="stage-wrap">
+  <div id="stage"></div>
+  <textarea id="editor" hidden></textarea>
+</div>
+
+<div id="fail" hidden></div>
+<input type="file" id="file-input" accept="image/*" multiple hidden />
+
+<script src="https://cdn.jsdelivr.net/npm/konva@9/konva.min.js"></script>
+<script type="module" src="mural.js"></script>
+</body>
+</html>
