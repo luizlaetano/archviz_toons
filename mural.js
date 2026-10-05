@@ -475,12 +475,15 @@ function openEditor(g) {
 }
 
 // ---------- ferramentas ----------
+// em tela de toque o padrão é a "Mão" (só navegar), para não editar sem querer
+const defaultTool = () => (canEdit && !matchMedia("(pointer: coarse)").matches ? "select" : "pan");
+
 function setTool(t) {
   tool = t;
   document.querySelectorAll("#toolbar .tool").forEach((b) => b.classList.toggle("active", b.dataset.tool === t));
   const wrap = $("stage-wrap");
   wrap.className = "tool-" + t;
-  stage.draggable(t === "select");
+  stage.draggable(t === "select" || t === "pan");
   for (const { node } of store.values()) node.draggable(canEdit && t === "select");
   if (t !== "select") tr.nodes([]);
 }
@@ -713,13 +716,14 @@ function initToolbar() {
     if ((e.ctrlKey || e.metaKey) && k === "y") { e.preventDefault(); redo(); return; }
     if (e.ctrlKey || e.metaKey || e.altKey) return;
     if (k === "e") setTool("eraser");
+    else if (k === "h") setTool("pan");
     else if (k === "v") setTool("select");
     else if (k === "p") setTool("pen");
     else if (k === "t") setTool("text");
     else if (k === "n") setTool("note");
     else if (k === "i") $("file-input").click();
     else if (k === "delete" || k === "backspace") { e.preventDefault(); deleteSelected(); }
-    else if (k === "escape") { setTool("select"); tr.nodes([]); }
+    else if (k === "escape") { setTool(defaultTool()); tr.nodes([]); }
   });
 }
 
@@ -743,7 +747,7 @@ async function boot() {
 
   if (canEdit) initToolbar();
   else { document.body.classList.add("view-only"); $("badge-view").hidden = false; }
-  setTool("select");
+  setTool(defaultTool());
 
   $("btn-fit").addEventListener("click", fitToContent);
   $("btn-copy").addEventListener("click", async () => {
