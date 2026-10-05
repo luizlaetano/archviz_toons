@@ -24,6 +24,9 @@ const C = {
 const FONT_SANS = '"IBM Plex Sans", sans-serif';
 const FONT_SERIF = '"Fraunces", serif';
 
+// sem isto o Konva não dispara touchmove durante um arrasto, e a pinça nunca roda
+Konva.hitOnDragEnabled = true;
+
 const $ = (id) => document.getElementById(id);
 const token = new URLSearchParams(location.search).get("m");
 
@@ -478,6 +481,11 @@ function openEditor(g) {
 // em tela de toque o padrão é a "Mão" (só navegar), para não editar sem querer
 const defaultTool = () => (canEdit && !matchMedia("(pointer: coarse)").matches ? "select" : "pan");
 
+// "Selecionar" liga/desliga; desligado = modo navegar (só pan e zoom)
+function toggleSelect() {
+  setTool(tool === "select" ? "pan" : "select");
+}
+
 function setTool(t) {
   tool = t;
   document.querySelectorAll("#toolbar .tool").forEach((b) => b.classList.toggle("active", b.dataset.tool === t));
@@ -689,7 +697,10 @@ function initStage() {
 
 function initToolbar() {
   $("toolbar").hidden = false;
-  document.querySelectorAll("#toolbar .tool").forEach((b) => b.addEventListener("click", () => setTool(b.dataset.tool)));
+  document.querySelectorAll("#toolbar .tool").forEach((b) => b.addEventListener("click", () => {
+    if (b.dataset.tool === "select") toggleSelect();
+    else setTool(b.dataset.tool);
+  }));
   $("btn-delete").addEventListener("click", deleteSelected);
   $("btn-undo").addEventListener("click", undo);
   $("btn-redo").addEventListener("click", redo);
@@ -716,8 +727,8 @@ function initToolbar() {
     if ((e.ctrlKey || e.metaKey) && k === "y") { e.preventDefault(); redo(); return; }
     if (e.ctrlKey || e.metaKey || e.altKey) return;
     if (k === "e") setTool("eraser");
-    else if (k === "h") setTool("pan");
-    else if (k === "v") setTool("select");
+
+    else if (k === "v") toggleSelect();
     else if (k === "p") setTool("pen");
     else if (k === "t") setTool("text");
     else if (k === "n") setTool("note");
