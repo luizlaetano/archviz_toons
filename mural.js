@@ -363,7 +363,19 @@ function copySelection() {
   return true;
 }
 
-function pasteClipboard() {
+// os itens vão também para a área de transferência do sistema (texto "MURAL:..."),
+// para o Ctrl+V colar o que foi copiado por último e funcionar entre abas/murais
+const CLIP_PREFIX = "MURAL:";
+function itemsFromText(txt) {
+  if (!txt || !txt.startsWith(CLIP_PREFIX)) return null;
+  try {
+    const arr = JSON.parse(txt.slice(CLIP_PREFIX.length));
+    return Array.isArray(arr) && arr.every((i) => i && i.id && i.tipo) ? arr : null;
+  } catch { return null; }
+}
+
+function pasteClipboard(items) {
+  clipboard = items;
   if (!clipboard.length) return;
   const off = 40 * ++pasteCount;
   let z = Math.max(0, ...[...store.values()].map((r) => r.item.z || 0));
@@ -844,10 +856,19 @@ function initToolbar() {
     e.target.value = "";
   });
 
+  document.addEventListener("copy", (e) => {
+    if (editing || /^(INPUT|TEXTAREA|SELECT)$/.test(e.target.tagName)) return;
+    if (!copySelection()) return;
+    e.clipboardData.setData("text/plain", CLIP_PREFIX + JSON.stringify(clipboard));
+    e.preventDefault();
+  });
+
   document.addEventListener("paste", (e) => {
     if (editing) return;
+    const items = itemsFromText(e.clipboardData?.getData("text/plain"));
+    if (items) { e.preventDefault(); pasteClipboard(items); return; }
     const files = [...(e.clipboardData?.files || [])].filter((f) => f.type.startsWith("image/"));
-    if (!files.length) { pasteClipboard(); return; }
+    if (!files.length) return;
     const c = viewCenter();
     addImageFiles(files, { x: c.x - 200, y: c.y - 150 });
   });
@@ -857,7 +878,6 @@ function initToolbar() {
     const k = e.key.toLowerCase();
     if ((e.ctrlKey || e.metaKey) && k === "z") { e.preventDefault(); e.shiftKey ? redo() : undo(); return; }
     if ((e.ctrlKey || e.metaKey) && k === "y") { e.preventDefault(); redo(); return; }
-    if ((e.ctrlKey || e.metaKey) && k === "c") { if (copySelection()) e.preventDefault(); return; }
     if (e.ctrlKey || e.metaKey || e.altKey) return;
     if (k === "e") setTool("eraser");
 
