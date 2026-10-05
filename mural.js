@@ -35,6 +35,7 @@ let tool = "select";
 let drawing = null;
 let editing = false;
 let fitted = false;
+let keepSelectionUntil = 0;
 let saveTimer = null;
 let statusTimer = null;
 
@@ -431,6 +432,7 @@ function onPointerDown(e) {
       : newItem("nota", p.x, p.y, 260, 200, { texto: "Nota", cor: C.brassSoft });
     setTool("select");
     tr.nodes([node]);
+    keepSelectionUntil = Date.now() + 400; // o "click" que vem após o mouseup não pode limpar a seleção
     setTimeout(() => openEditor(node), 0);
   }
 }
@@ -468,6 +470,28 @@ function onWheel(e) {
   const next = Math.min(4, Math.max(0.05, e.evt.deltaY < 0 ? old * 1.08 : old / 1.08));
   stage.scale({ x: next, y: next });
   stage.position({ x: p.x - mp.x * next, y: p.y - mp.y * next });
+}
+
+// pinça (dois dedos): zoom + pan, no padrão do Konva
+let pinch = null;
+function onPinchMove(e) {
+  const t = e.evt.touches;
+  if (!t || t.length !== 2) return;
+  e.evt.preventDefault();
+  if (drawing) { drawing.line.destroy(); drawing = null; }
+  if (stage.isDragging()) stage.stopDrag();
+  const rect = stage.container().getBoundingClientRect();
+  const p1 = { x: t[0].clientX - rect.left, y: t[0].clientY - rect.top };
+  const p2 = { x: t[1].clientX - rect.left, y: t[1].clientY - rect.top };
+  const center = { x: (p1.x + p2.x) / 2, y: (p1.y + p2.y) / 2 };
+  const dist = Math.hypot(p2.x - p1.x, p2.y - p1.y);
+  if (!pinch) { pinch = { center, dist }; return; }
+  const old = stage.scaleX();
+  const next = Math.min(4, Math.max(0.05, old * (dist / pinch.dist)));
+  const wp = { x: (pinch.center.x - stage.x()) / old, y: (pinch.center.y - stage.y()) / old };
+  stage.scale({ x: next, y: next });
+  stage.position({ x: center.x - wp.x * next, y: center.y - wp.y * next });
+  pinch = { center, dist };
 }
 
 function fitToContent() {
@@ -536,9 +560,12 @@ function initStage() {
   stage.on("mousedown touchstart", onPointerDown);
   stage.on("mousemove touchmove", onPointerMove);
   stage.on("mouseup touchend", onPointerUp);
+  stage.on("touchmove", onPinchMove);
+  stage.on("touchend", () => { pinch = null; });
 
   stage.on("click tap", (e) => {
     if (!canEdit || tool !== "select") return;
+    if (Date.now() < keepSelectionUntil) return;
     if (e.target === stage) { tr.nodes([]); return; }
     const g = e.target.findAncestor(".item", true);
     if (g) tr.nodes([g]);

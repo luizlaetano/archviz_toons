@@ -75,7 +75,7 @@ button.danger:hover { border-color: var(--danger); color: var(--danger); }
   background-image: radial-gradient(var(--line) 1px, transparent 1px);
   background-size: 28px 28px;
 }
-#stage { width: 100%; height: 100%; }
+#stage { width: 100%; height: 100%; touch-action: none; }
 #stage-wrap.tool-pen { cursor: crosshair; }
 #stage-wrap.tool-text, #stage-wrap.tool-note { cursor: text; }
 #stage-wrap.drop-over { outline: 2px dashed var(--brass); outline-offset: -8px; }
