@@ -486,7 +486,14 @@ function toggleSelect() {
   setTool(tool === "select" ? "pan" : "select");
 }
 
+function showPenPanel(show) {
+  const p = $("pen-panel");
+  if (p) p.hidden = !show;
+}
+
 function setTool(t) {
+  if (t === "pen" && tool !== "pen") showPenPanel(true);
+  else if (t !== "pen") showPenPanel(false);
   tool = t;
   document.querySelectorAll("#toolbar .tool").forEach((b) => b.classList.toggle("active", b.dataset.tool === t));
   const wrap = $("stage-wrap");
@@ -518,6 +525,7 @@ function onPointerDown(e) {
   }
 
   if (tool === "pen") {
+    showPenPanel(false);
     const p = worldPointer();
     const line = new Konva.Line({
       points: [p.x, p.y], stroke: $("pen-color").value, strokeWidth: Number($("pen-width").value),
@@ -528,11 +536,9 @@ function onPointerDown(e) {
     return;
   }
 
-  if (tool === "text" || tool === "note") {
+  if (tool === "text") {
     const p = worldPointer();
-    const { item, node } = tool === "text"
-      ? newItem("texto", p.x, p.y, 320, null, { texto: "Texto", tamanho: 22 })
-      : newItem("nota", p.x, p.y, 260, 200, { texto: "Nota", cor: C.brassSoft });
+    const { item, node } = newItem("texto", p.x, p.y, 320, null, { texto: "Texto", tamanho: 22 });
     setTool("select");
     tr.nodes([node]);
     keepSelectionUntil = Date.now() + 400; // o "click" que vem após o mouseup não pode limpar a seleção
@@ -699,8 +705,16 @@ function initToolbar() {
   $("toolbar").hidden = false;
   document.querySelectorAll("#toolbar .tool").forEach((b) => b.addEventListener("click", () => {
     if (b.dataset.tool === "select") toggleSelect();
+    else if (b.dataset.tool === "pen" && tool === "pen") showPenPanel($("pen-panel").hidden);
     else setTool(b.dataset.tool);
   }));
+  document.querySelectorAll("#pen-panel .w").forEach((b) => b.addEventListener("click", () => {
+    $("pen-width").value = b.dataset.w;
+    document.querySelectorAll("#pen-panel .w").forEach((x) => x.classList.toggle("active", x === b));
+  }));
+  document.body.classList.add("has-toolbar");
+  const wrap = $("stage"); // a barra inferior (celular) encolhe o quadro
+  stage.size({ width: wrap.clientWidth, height: wrap.clientHeight });
   $("btn-delete").addEventListener("click", deleteSelected);
   $("btn-undo").addEventListener("click", undo);
   $("btn-redo").addEventListener("click", redo);
@@ -731,7 +745,6 @@ function initToolbar() {
     else if (k === "v") toggleSelect();
     else if (k === "p") setTool("pen");
     else if (k === "t") setTool("text");
-    else if (k === "n") setTool("note");
     else if (k === "i") $("file-input").click();
     else if (k === "delete" || k === "backspace") { e.preventDefault(); deleteSelected(); }
     else if (k === "escape") { setTool(defaultTool()); tr.nodes([]); }

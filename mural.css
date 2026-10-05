@@ -55,17 +55,63 @@ button.tool.active { background: var(--brass); color: var(--bg); border-color: v
 button.danger:hover { border-color: var(--danger); color: var(--danger); }
 
 /* ---------- barra de ferramentas ---------- */
+:root { --bar-h: 56px; }
 #toolbar {
   position: fixed; left: 16px; top: calc(var(--topbar-h) + 16px); z-index: 20;
-  display: flex; flex-direction: column; gap: 6px;
-  padding: 8px; background: var(--panel); border: 1px solid var(--line);
-  border-radius: 10px; width: 92px;
+  display: flex; flex-direction: column; gap: 4px;
+  padding: 6px; background: var(--panel); border: 1px solid var(--line);
+  border-radius: 10px;
 }
 #toolbar hr { width: 100%; border: 0; border-top: 1px solid var(--line); margin: 4px 0; }
-#toolbar button, #toolbar select { width: 100%; }
-.pen-opt input[type="color"] {
-  width: 100%; height: 30px; padding: 0; border: 1px solid var(--line);
+#toolbar button { width: 40px; height: 40px; padding: 0; display: grid; place-items: center; position: relative; }
+#toolbar svg {
+  width: 22px; height: 22px; fill: none; stroke: currentColor;
+  stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round;
+}
+.tool-wrap { position: relative; }
+
+/* legenda ao passar o mouse (só onde há mouse) */
+@media (hover: hover) {
+  #toolbar [data-label]:hover::after {
+    content: attr(data-label); position: absolute; left: calc(100% + 10px); top: 50%;
+    transform: translateY(-50%); white-space: nowrap; z-index: 40; pointer-events: none;
+    background: var(--panel-2); color: var(--text); border: 1px solid var(--line);
+    border-radius: 6px; padding: 4px 8px; font-size: 0.78rem;
+  }
+  .tool-wrap:has(#pen-panel:not([hidden])) [data-tool="pen"]::after { display: none; }
+}
+
+/* opções da caneta: abre ao lado da barra */
+#pen-panel {
+  position: absolute; left: calc(100% + 14px); top: 0;
+  display: flex; align-items: center; gap: 6px; padding: 6px;
+  background: var(--panel); border: 1px solid var(--line); border-radius: 10px;
+}
+#pen-panel[hidden] { display: none; }
+#pen-panel input[type="color"] {
+  width: 36px; height: 36px; padding: 0; border: 1px solid var(--line);
   border-radius: 6px; background: transparent; cursor: pointer;
+}
+#pen-panel .w { width: 36px; height: 36px; display: grid; place-items: center; padding: 0; }
+#pen-panel .w i { width: var(--d); height: var(--d); border-radius: 50%; background: currentColor; display: block; }
+#pen-panel .w.active { border-color: var(--brass); color: var(--brass); }
+
+/* celular: barra embaixo, só ícones, e o quadro ganha a área toda */
+@media (max-width: 700px) {
+  #toolbar {
+    left: 0; right: 0; top: auto; bottom: 0; height: calc(var(--bar-h) + env(safe-area-inset-bottom));
+    padding: 8px 8px calc(8px + env(safe-area-inset-bottom)); flex-direction: row;
+    justify-content: space-between; align-items: center; gap: 0;
+    border-radius: 0; border-width: 1px 0 0 0;
+  }
+  #toolbar hr { width: 1px; height: 24px; border: 0; border-left: 1px solid var(--line); margin: 0; }
+  #toolbar button { width: 38px; height: 38px; }
+  #pen-panel { left: 0; top: auto; bottom: calc(100% + 14px); }
+  body.has-toolbar #stage-wrap { bottom: calc(var(--bar-h) + env(safe-area-inset-bottom)); }
+  #topbar { padding: 0 12px; gap: 8px; }
+  #mural-title { font-size: 1rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+  #status { min-width: 0; }
+  .btn-ghost { padding: 5px 8px; font-size: 0.78rem; }
 }
 
 /* ---------- canvas ---------- */
@@ -79,7 +125,7 @@ button.danger:hover { border-color: var(--danger); color: var(--danger); }
 #stage-wrap.tool-pen { cursor: crosshair; }
 #stage-wrap.tool-pan { cursor: grab; }
 #stage-wrap.tool-eraser { cursor: cell; }
-#stage-wrap.tool-text, #stage-wrap.tool-note { cursor: text; }
+#stage-wrap.tool-text { cursor: text; }
 #stage-wrap.drop-over { outline: 2px dashed var(--brass); outline-offset: -8px; }
 
 #editor {
