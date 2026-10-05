@@ -97,6 +97,10 @@ function buildNode(item) {
     draggable: canEdit && tool === "select",
   });
   fillGroup(g, item);
+  g.on("dragstart transformstart", () => {
+    const rec = store.get(g.id());
+    if (rec) rec.before = snap(rec.item);
+  });
   g.on("dragend", () => onMoved(g));
   g.on("transformend", () => onTransformed(g));
   return g;
@@ -226,8 +230,80 @@ function newItem(tipo, x, y, w, h, dados) {
   };
   const node = addItem(item);
   queueSave(item);
+  pushHistory([{ k: "add", s: snap(item) }]);
   return { item, node };
 }
+
+// ---------- desfazer / refazer ----------
+// Cada entrada do histórico é uma lista de operações: add (item criado),
+// del (item removido) ou upd (antes/depois). Desfazer aplica o inverso.
+const undoStack = [];
+const redoStack = [];
+const HISTORY_MAX = 100;
+
+const snap = (it) => JSON.parse(JSON.stringify({
+  id: it.id, tipo: it.tipo, x: it.x, y: it.y, w: it.w ?? null, h: it.h ?? null,
+  rotacao: it.rotacao || 0, z: it.z || 0, dados: it.dados || {},
+}));
+
+function pushHistory(ops) {
+  if (!ops.length) return;
+  undoStack.push(ops);
+  if (undoStack.length > HISTORY_MAX) undoStack.shift();
+  redoStack.length = 0;
+  syncHistoryButtons();
+}
+
+function syncHistoryButtons() {
+  const u = $("btn-undo"), r = $("btn-redo");
+  if (u) u.disabled = !undoStack.length;
+  if (r) r.disabled = !redoStack.length;
+}
+
+function restoreItem(st) {
+  if (store.has(st.id)) return;
+  addItem({ ...JSON.parse(JSON.stringify(st)), updated_at: new Date(0).toISOString() });
+  queueSave(store.get(st.id).item);
+}
+
+function setItemState(st) {
+  const rec = store.get(st.id);
+  if (!rec) return;
+  Object.assign(rec.item, JSON.parse(JSON.stringify(st)));
+  rec.node.position({ x: st.x, y: st.y });
+  rec.node.rotation(st.rotacao || 0);
+  fillGroup(rec.node, rec.item);
+  tr.forceUpdate();
+  layer.batchDraw();
+  queueSave(rec.item);
+}
+
+async function removeItem(id) {
+  deleting.add(id);
+  removeLocal(id);
+  dirty.delete(id);
+  const { error } = await supabase.rpc("mural_remover_item", { p_edit_token: token, p_item_id: id });
+  if (error) setStatus("erro ao excluir: " + error.message, true);
+  deleting.delete(id);
+}
+
+function applyOp(op, undo) {
+  const adding = (op.k === "add") !== undo; // add refeito ou del desfeito
+  if (op.k === "upd") setItemState(undo ? op.before : op.after);
+  else if (adding) restoreItem(op.s);
+  else removeItem(op.s.id);
+}
+
+function stepHistory(from, to, undo) {
+  const ops = from.pop();
+  if (!ops) return;
+  tr.nodes([]);
+  (undo ? [...ops].reverse() : ops).forEach((op) => applyOp(op, undo));
+  to.push(ops);
+  syncHistoryButtons();
+}
+const undo = () => stepHistory(undoStack, redoStack, true);
+const redo = () => stepHistory(redoStack, undoStack, false);
 
 // ---------- salvar ----------
 function queueSave(item) {
@@ -260,6 +336,7 @@ function onMoved(g) {
   rec.item.x = g.x();
   rec.item.y = g.y();
   queueSave(rec.item);
+  if (rec.before) pushHistory([{ k: "upd", before: rec.before, after: snap(rec.item) }]);
 }
 
 function onTransformed(g) {
@@ -284,21 +361,16 @@ function onTransformed(g) {
   tr.forceUpdate();
   layer.batchDraw();
   queueSave(it);
+  if (rec.before) pushHistory([{ k: "upd", before: rec.before, after: snap(it) }]);
 }
 
 async function deleteSelected() {
   const nodes = tr.nodes().slice();
   if (!nodes.length) return;
   tr.nodes([]);
-  for (const g of nodes) {
-    const id = g.id();
-    deleting.add(id);
-    removeLocal(id);
-    dirty.delete(id);
-    const { error } = await supabase.rpc("mural_remover_item", { p_edit_token: token, p_item_id: id });
-    if (error) setStatus("erro ao excluir: " + error.message, true);
-    deleting.delete(id);
-  }
+  const ops = nodes.map((g) => ({ k: "del", s: snap(store.get(g.id()).item) }));
+  pushHistory(ops);
+  for (const op of ops) await removeItem(op.s.id);
 }
 
 // ---------- imagens ----------
@@ -362,6 +434,7 @@ function openEditor(g) {
   if (!rec || !["texto", "nota", "frame"].includes(rec.item.tipo)) return;
   const it = rec.item;
   const key = it.tipo === "frame" ? "titulo" : "texto";
+  const before = snap(it);
   const scale = stage.scaleX();
   const r = g.getClientRect({ skipShadow: true });
   const ta = $("editor");
@@ -390,6 +463,7 @@ function openEditor(g) {
       tr.forceUpdate();
       layer.batchDraw();
       queueSave(it);
+      pushHistory([{ k: "upd", before, after: snap(it) }]);
     }
   };
   ta.onblur = () => finish(true);
@@ -411,8 +485,26 @@ function setTool(t) {
   if (t !== "select") tr.nodes([]);
 }
 
+// borracha: apaga os traços de caneta por onde o ponteiro passa
+let erasing = null;
+function eraseAtPointer() {
+  const p = stage.getPointerPosition();
+  if (!p) return;
+  const g = stage.getIntersection(p)?.findAncestor(".item", true);
+  const rec = g && store.get(g.id());
+  if (!rec || rec.item.tipo !== "traco") return;
+  erasing.push({ k: "del", s: snap(rec.item) });
+  removeItem(rec.item.id);
+}
+
 function onPointerDown(e) {
   if (!canEdit || editing) return;
+
+  if (tool === "eraser") {
+    erasing = [];
+    eraseAtPointer();
+    return;
+  }
 
   if (tool === "pen") {
     const p = worldPointer();
@@ -438,6 +530,7 @@ function onPointerDown(e) {
 }
 
 function onPointerMove() {
+  if (erasing) { eraseAtPointer(); return; }
   if (!drawing) return;
   const p = worldPointer();
   const n = drawing.pts.length;
@@ -450,6 +543,7 @@ function onPointerMove() {
 }
 
 function onPointerUp() {
+  if (erasing) { pushHistory(erasing); erasing = null; return; }
   if (!drawing) return;
   const { pts, line } = drawing;
   drawing = null;
@@ -594,6 +688,9 @@ function initToolbar() {
   $("toolbar").hidden = false;
   document.querySelectorAll("#toolbar .tool").forEach((b) => b.addEventListener("click", () => setTool(b.dataset.tool)));
   $("btn-delete").addEventListener("click", deleteSelected);
+  $("btn-undo").addEventListener("click", undo);
+  $("btn-redo").addEventListener("click", redo);
+  syncHistoryButtons();
   $("btn-image").addEventListener("click", () => $("file-input").click());
   $("file-input").addEventListener("change", (e) => {
     const c = viewCenter();
@@ -612,7 +709,11 @@ function initToolbar() {
   document.addEventListener("keydown", (e) => {
     if (editing || /^(INPUT|TEXTAREA|SELECT)$/.test(e.target.tagName)) return;
     const k = e.key.toLowerCase();
-    if (k === "v") setTool("select");
+    if ((e.ctrlKey || e.metaKey) && k === "z") { e.preventDefault(); e.shiftKey ? redo() : undo(); return; }
+    if ((e.ctrlKey || e.metaKey) && k === "y") { e.preventDefault(); redo(); return; }
+    if (e.ctrlKey || e.metaKey || e.altKey) return;
+    if (k === "e") setTool("eraser");
+    else if (k === "v") setTool("select");
     else if (k === "p") setTool("pen");
     else if (k === "t") setTool("text");
     else if (k === "n") setTool("note");
