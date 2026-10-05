@@ -257,6 +257,14 @@ function pushHistory(ops) {
   syncHistoryButtons();
 }
 
+let pendingOps = [];
+function queueOp(op) {
+  if (!pendingOps.length) {
+    setTimeout(() => { pushHistory(pendingOps); pendingOps = []; }, 0);
+  }
+  pendingOps.push(op);
+}
+
 function syncHistoryButtons() {
   const u = $("btn-undo"), r = $("btn-redo");
   if (u) u.disabled = !undoStack.length;
@@ -339,7 +347,37 @@ function onMoved(g) {
   rec.item.x = g.x();
   rec.item.y = g.y();
   queueSave(rec.item);
-  if (rec.before) pushHistory([{ k: "upd", before: rec.before, after: snap(rec.item) }]);
+  if (rec.before) queueOp({ k: "upd", before: rec.before, after: snap(rec.item) });
+}
+
+// copiar/colar: área interna; imagens coladas reaproveitam o mesmo arquivo do storage
+let clipboard = [];
+let pasteCount = 0;
+
+function copySelection() {
+  const nodes = tr.nodes();
+  if (!nodes.length) return false;
+  clipboard = nodes.map((n) => snap(store.get(n.id()).item));
+  pasteCount = 0;
+  setStatus(clipboard.length > 1 ? `${clipboard.length} itens copiados` : "item copiado");
+  return true;
+}
+
+function pasteClipboard() {
+  if (!clipboard.length) return;
+  const off = 40 * ++pasteCount;
+  let z = Math.max(0, ...[...store.values()].map((r) => r.item.z || 0));
+  const ops = [];
+  const nodes = clipboard.map((st) => {
+    const copy = { ...JSON.parse(JSON.stringify(st)), id: crypto.randomUUID(), x: st.x + off, y: st.y + off, z: ++z };
+    const node = addItem({ ...copy, updated_at: new Date(0).toISOString() });
+    queueSave(store.get(copy.id).item);
+    ops.push({ k: "add", s: snap(copy) });
+    return node;
+  });
+  pushHistory(ops);
+  setTool("select");
+  selectNodes(nodes);
 }
 
 function onTransformed(g) {
@@ -352,10 +390,19 @@ function onTransformed(g) {
 
   if (it.tipo === "traco") {
     it.dados.pontos = (it.dados.pontos || []).map((v, i) => (i % 2 === 0 ? v * sx : v * sy));
+  } else if (it.tipo === "texto") {
+    // canto ou alça vertical: a fonte acompanha a caixa; alça lateral: só reflui o texto
+    const baseW = it.w ?? g.findOne(".body")?.width() ?? 100;
+    if (Math.abs(sy - 1) > 0.005) {
+      it.dados.tamanho = Math.max(8, (it.dados.tamanho || 20) * sy);
+      it.w = Math.max(20, baseW * (Math.abs(sx - 1) > 0.005 ? sx : sy));
+    } else {
+      it.w = Math.max(20, baseW * sx);
+    }
   } else {
     const baseW = it.w ?? g.findOne(".body")?.width() ?? 100;
     it.w = Math.max(20, baseW * sx);
-    if (it.tipo !== "texto") it.h = Math.max(20, (it.h || 0) * sy);
+    it.h = Math.max(20, (it.h || 0) * sy);
   }
   it.x = g.x();
   it.y = g.y();
@@ -364,7 +411,7 @@ function onTransformed(g) {
   tr.forceUpdate();
   layer.batchDraw();
   queueSave(it);
-  if (rec.before) pushHistory([{ k: "upd", before: rec.before, after: snap(it) }]);
+  if (rec.before) queueOp({ k: "upd", before: rec.before, after: snap(it) });
 }
 
 async function deleteSelected() {
@@ -486,6 +533,12 @@ function toggleSelect() {
   setTool(tool === "select" ? "pan" : "select");
 }
 
+// texto e imagem mantêm a proporção ao puxar o canto; moldura livre
+function selectNodes(nodes) {
+  tr.nodes(nodes);
+  tr.keepRatio(nodes.length > 0 && nodes.every((n) => ["texto", "imagem", "traco"].includes(store.get(n.id())?.item.tipo)));
+}
+
 function showPenPanel(show) {
   const p = $("pen-panel");
   if (p) p.hidden = !show;
@@ -498,7 +551,8 @@ function setTool(t) {
   document.querySelectorAll("#toolbar .tool").forEach((b) => b.classList.toggle("active", b.dataset.tool === t));
   const wrap = $("stage-wrap");
   wrap.className = "tool-" + t;
-  stage.draggable(t === "select" || t === "pan");
+  stage.draggable(true);
+
   for (const { node } of store.values()) node.draggable(canEdit && t === "select");
   if (t !== "select") tr.nodes([]);
 }
@@ -515,8 +569,54 @@ function eraseAtPointer() {
   removeItem(rec.item.id);
 }
 
+// janela de seleção (modo Selecionar, arrastando no fundo)
+let marquee = null;
+function startMarquee(e) {
+  const p = worldPointer();
+  const rect = new Konva.Rect({
+    x: p.x, y: p.y, width: 0, height: 0, listening: false,
+    fill: "rgba(199,154,62,0.10)", stroke: C.brass, strokeWidth: 1 / stage.scaleX(), dash: [6, 4],
+  });
+  layer.add(rect);
+  marquee = { x0: p.x, y0: p.y, rect, additive: e.evt.ctrlKey || e.evt.metaKey || e.evt.shiftKey, moved: false };
+}
+
+function moveMarquee() {
+  const p = worldPointer();
+  const m = marquee;
+  m.rect.setAttrs({
+    x: Math.min(m.x0, p.x), y: Math.min(m.y0, p.y),
+    width: Math.abs(p.x - m.x0), height: Math.abs(p.y - m.y0),
+  });
+  if (m.rect.width() * stage.scaleX() > 3 || m.rect.height() * stage.scaleX() > 3) m.moved = true;
+  layer.batchDraw();
+}
+
+function endMarquee() {
+  const m = marquee;
+  marquee = null;
+  const box = m.rect.getClientRect({ relativeTo: layer });
+  m.rect.destroy();
+  layer.batchDraw();
+  if (!m.moved) return;
+  keepSelectionUntil = Date.now() + 300; // o "click" após soltar não pode limpar a seleção
+  const hits = [];
+  for (const { item, node } of store.values()) {
+    const r = node.getClientRect({ relativeTo: layer });
+    const inside = r.x >= box.x && r.y >= box.y && r.x + r.width <= box.x + box.width && r.y + r.height <= box.y + box.height;
+    if (item.tipo === "frame" ? inside : Konva.Util.haveIntersection(box, r)) hits.push(node);
+  }
+  selectNodes(m.additive ? [...new Set([...tr.nodes(), ...hits])] : hits);
+}
+
 function onPointerDown(e) {
   if (!canEdit || editing) return;
+  if (e.evt.button > 0) return; // botão do meio/direito: só pan
+
+  if (tool === "select") {
+    if (e.target === stage && !e.evt.type.startsWith("touch")) startMarquee(e); // no toque, arrastar o fundo faz pan
+    return;
+  }
 
   if (tool === "eraser") {
     erasing = [];
@@ -540,13 +640,14 @@ function onPointerDown(e) {
     const p = worldPointer();
     const { item, node } = newItem("texto", p.x, p.y, 320, null, { texto: "Texto", tamanho: 22 });
     setTool("select");
-    tr.nodes([node]);
+    selectNodes([node]);
     keepSelectionUntil = Date.now() + 400; // o "click" que vem após o mouseup não pode limpar a seleção
     setTimeout(() => openEditor(node), 0);
   }
 }
 
 function onPointerMove() {
+  if (marquee) { moveMarquee(); return; }
   if (erasing) { eraseAtPointer(); return; }
   if (!drawing) return;
   const p = worldPointer();
@@ -560,6 +661,7 @@ function onPointerMove() {
 }
 
 function onPointerUp() {
+  if (marquee) { endMarquee(); return; }
   if (erasing) { pushHistory(erasing); erasing = null; return; }
   if (!drawing) return;
   const { pts, line } = drawing;
@@ -590,6 +692,7 @@ function onPinchMove(e) {
   if (!t || t.length !== 2) return;
   e.evt.preventDefault();
   if (drawing) { drawing.line.destroy(); drawing = null; }
+  if (marquee) { marquee.rect.destroy(); marquee = null; }
   if (stage.isDragging()) stage.stopDrag();
   const rect = stage.container().getBoundingClientRect();
   const p1 = { x: t[0].clientX - rect.left, y: t[0].clientY - rect.top };
@@ -671,15 +774,30 @@ function initStage() {
   stage.on("mousedown touchstart", onPointerDown);
   stage.on("mousemove touchmove", onPointerMove);
   stage.on("mouseup touchend", onPointerUp);
+  // pan do quadro: modo navegar (qualquer ponteiro), botão do meio (sempre) e um dedo
+  // no modo Selecionar; fora disso o arrasto no fundo é janela de seleção ou desenho
+  stage.on("dragstart", (e) => {
+    if (e.target !== stage) return;
+    const touch = e.evt.type.startsWith("touch");
+    const allowed = tool === "pan" || e.evt.button === 1 || (e.evt.buttons & 4) || (touch && tool === "select");
+    if (!allowed) stage.stopDrag();
+  });
+  // soltar fora do quadro (ex.: sobre a barra) também termina a janela de seleção
+  window.addEventListener("mouseup", () => { if (marquee) endMarquee(); });
+  stage.container().addEventListener("mousedown", (e) => { if (e.button === 1) e.preventDefault(); }); // sem autoscroll do botão do meio
   stage.on("touchmove", onPinchMove);
   stage.on("touchend", () => { pinch = null; });
 
   stage.on("click tap", (e) => {
     if (!canEdit || tool !== "select") return;
     if (Date.now() < keepSelectionUntil) return;
-    if (e.target === stage) { tr.nodes([]); return; }
+    if (e.target === stage) { if (!(e.evt.ctrlKey || e.evt.metaKey || e.evt.shiftKey)) tr.nodes([]); return; }
     const g = e.target.findAncestor(".item", true);
-    if (g) tr.nodes([g]);
+    if (!g) return;
+    if (e.evt.ctrlKey || e.evt.metaKey || e.evt.shiftKey) {
+      const cur = tr.nodes();
+      selectNodes(cur.includes(g) ? cur.filter((n) => n !== g) : [...cur, g]);
+    } else selectNodes([g]);
   });
 
   stage.on("dblclick dbltap", (e) => {
@@ -729,7 +847,7 @@ function initToolbar() {
   document.addEventListener("paste", (e) => {
     if (editing) return;
     const files = [...(e.clipboardData?.files || [])].filter((f) => f.type.startsWith("image/"));
-    if (!files.length) return;
+    if (!files.length) { pasteClipboard(); return; }
     const c = viewCenter();
     addImageFiles(files, { x: c.x - 200, y: c.y - 150 });
   });
@@ -739,6 +857,7 @@ function initToolbar() {
     const k = e.key.toLowerCase();
     if ((e.ctrlKey || e.metaKey) && k === "z") { e.preventDefault(); e.shiftKey ? redo() : undo(); return; }
     if ((e.ctrlKey || e.metaKey) && k === "y") { e.preventDefault(); redo(); return; }
+    if ((e.ctrlKey || e.metaKey) && k === "c") { if (copySelection()) e.preventDefault(); return; }
     if (e.ctrlKey || e.metaKey || e.altKey) return;
     if (k === "e") setTool("eraser");
 
